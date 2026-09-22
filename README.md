@@ -7,30 +7,54 @@
 Побудувати наскрізну навчальну систему:
 
 ```text
-Open Data → ETL → Storage → Analytics → Machine Learning → API → Dashboard
+Open Data → ETL → SQLite → Analytics → Machine Learning → API → Dashboard
 ```
 
-Система має показати повний життєвий цикл даних: від отримання сирих відкритих даних до інтерактивної візуалізації, статистичного аналізу та демонстраційного ML-прогнозування.
+Система має показати повний життєвий цикл даних: від отримання сирих відкритих даних до локальної реляційної БД, інтерактивної візуалізації, статистичного аналізу та демонстраційного ML-прогнозування.
 
 > Проєкт має навчальний та дослідницький характер. Прогнозний модуль не призначений для оперативного застосування або прогнозування конкретних цілей, маршрутів чи точного місця майбутніх ударів.
 
-## 2. Основні функції MVP
+## 2. Технологічний стек
+
+Початковий runtime навмисно простий:
+
+- Python;
+- SQLite через стандартний модуль `sqlite3`;
+- pandas / NumPy;
+- scikit-learn;
+- FastAPI;
+- HTML + CSS + JavaScript;
+- Chart.js;
+- Leaflet.
+
+SQLite використовується замість окремого серверного СУБД, щоб проєкт можна було локально запускати без Docker, портів, користувачів БД і окремої інсталяції сервера.
+
+Локальна БД:
+
+```text
+data/airstrikes.db
+```
+
+Файл БД генерується локально і не комітиться в Git.
+
+## 3. Основні функції MVP
 
 1. Завантаження історичних даних з документованих відкритих джерел.
 2. Збереження незмінних source snapshots та provenance.
 3. Очищення й нормалізація даних.
 4. Формування canonical relational dataset.
-5. Візуалізація:
+5. Завантаження canonical tables у SQLite.
+6. Візуалізація:
    - кількість подій у часі;
    - розподіл за регіонами;
    - розподіл за категоріями повітряних засобів;
    - часові закономірності;
    - агрегована карта України.
-6. Побудова baseline ML-моделі.
-7. Порівняння декількох моделей класифікації.
-8. Відображення результатів моделі у dashboard.
+7. Побудова baseline ML-моделі.
+8. Порівняння декількох моделей класифікації.
+9. Відображення результатів моделі у dashboard.
 
-## 3. Базові джерела даних
+## 4. Базові джерела даних
 
 Для MVP визначено такі ролі джерел:
 
@@ -42,7 +66,7 @@ Open Data → ETL → Storage → Analytics → Machine Learning → API → Das
 
 Детальний реєстр, ліцензії, обмеження та рішення щодо використання описані у [docs/data_sources.md](docs/data_sources.md).
 
-## 4. ML-задача
+## 5. ML-задача
 
 Початкова навчальна постановка:
 
@@ -83,7 +107,7 @@ region_code × time_bucket
 
 Обов’язкова вимога: ознаки формуються лише з інформації, доступної **до** prediction interval.
 
-## 5. Архітектура
+## 6. Архітектура
 
 ```text
 Public Open Data
@@ -100,16 +124,16 @@ canonical transformation  ←  data/external/
        ↓
 data/processed/
        ↓
-PostgreSQL
-   ↙        ↘
-Analytics   ML model
-   ↘        ↙
-    FastAPI
-       ↓
- REST API
-       ↓
+SQLite: data/airstrikes.db
+   ↙                 ↘
+Analytics             ML
+   ↘                 ↙
+        FastAPI
+           ↓
+       REST API
+           ↓
 HTML + CSS + JavaScript
-       ↓
+           ↓
 Leaflet + Chart.js
 ```
 
@@ -117,7 +141,7 @@ Leaflet + Chart.js
 
 Докладніше: [docs/architecture.md](docs/architecture.md).
 
-## 6. Структура репозиторію
+## 7. Структура репозиторію
 
 ```text
 .
@@ -130,9 +154,15 @@ Leaflet + Chart.js
 │   ├── raw/          # immutable source snapshots
 │   ├── interim/      # source-specific cleaned/parsing outputs
 │   ├── processed/    # canonical analytical datasets
-│   └── external/     # GIS/reference/enrichment files
+│   ├── external/     # GIS/reference/enrichment files
+│   └── airstrikes.db # generated locally, gitignored
 ├── notebooks/
 ├── src/
+│   ├── db/
+│   │   ├── connection.py
+│   │   ├── init_db.py
+│   │   ├── check_db.py
+│   │   └── queries.py
 │   ├── ingestion/
 │   ├── preprocessing/
 │   ├── features/
@@ -151,7 +181,7 @@ Leaflet + Chart.js
     └── methodology.md
 ```
 
-## 7. Canonical data model
+## 8. Canonical data model
 
 Початкова плоска схема `event → one region` не використовується, оскільки source row може містити кілька областей, напрямок або всю Україну.
 
@@ -164,6 +194,9 @@ attack_events
       │
       ├── optional alert_intervals
       └── optional weather_observations
+
+dataset_builds
+      └── provenance / version records
 ```
 
 Тобто:
@@ -171,56 +204,100 @@ attack_events
 - source attack observation зберігається без втрати оригінальної семантики;
 - `target_raw` зберігається окремо;
 - регіональні зв’язки виділяються в many-to-many таблицю;
-- неоднозначні записи не отримують вигадану географічну точність.
+- неоднозначні записи не отримують вигадану географічну точність;
+- кожна суттєва побудова БД може мати provenance record.
 
 Поля та правила mapping: [docs/data_dictionary.md](docs/data_dictionary.md).
 
-## 8. Етапи реалізації
+## 9. Локальний запуск БД
 
-### Stage 1 — Data foundation
-- [x] визначити primary/candidate sources;
-- [x] описати ліцензії та обмеження;
-- [x] визначити data zones;
-- [x] визначити canonical relational schema;
-- [ ] реалізувати acquisition першого snapshot;
+Створити virtual environment і встановити залежності:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Ініціалізувати SQLite:
+
+```bash
+python -m src.db.init_db
+```
+
+Перевірити структуру та integrity:
+
+```bash
+python -m src.db.check_db
+```
+
+За замовчуванням використовується:
+
+```text
+data/airstrikes.db
+```
+
+Інший шлях можна задати через `DATABASE_PATH` у локальному `.env`.
+
+## 10. План реалізації
+
+### Sprint 1 — SQLite foundation
+- [x] перейти від PostgreSQL до SQLite;
+- [x] адаптувати `schema.sql`;
+- [x] створити централізований DB connection layer;
+- [x] додати DB initialization;
+- [x] додати DB integrity/schema check;
+- [x] додати `dataset_builds` для provenance;
+- [x] синхронізувати документацію та конфігурацію.
+
+### Sprint 2 — Primary dataset → SQLite
+- [ ] отримати versioned snapshot `missile_attacks_daily.csv`;
+- [ ] зберегти metadata/checksum;
 - [ ] реалізувати primary-source ingestion parser;
-- [ ] створити processed build manifest.
+- [ ] реалізувати canonical transformation;
+- [ ] завантажити `attack_events`;
+- [ ] розібрати `target` у `attack_event_regions`;
+- [ ] записати provenance у `dataset_builds`.
 
-### Stage 2 — EDA
-- очистити дані;
+### Sprint 3 — EDA + SQL analytics
 - дослідити пропуски та дублікати;
 - проаналізувати неоднозначні target fields;
-- побудувати базові графіки;
-- визначити придатність даних для ML.
+- створити базові SQL queries;
+- побудувати перші графіки;
+- визначити придатність даних для oblast-level ML labels.
 
-### Stage 3 — Feature engineering
+### Sprint 4 — FastAPI + first dashboard
+- перший analytics endpoint;
+- daily timeline;
+- KPI;
+- перший Chart.js графік.
+
+### Sprint 5 — Regional map
+- canonical region reference;
+- geoBoundaries ADM1;
+- Leaflet;
+- агрегована історична карта.
+
+### Sprint 6 — ML dataset
 - часові ознаки;
 - rolling statistics;
 - лагові ознаки;
 - регіональні агрегати;
-- optional historical weather/alert features.
+- leakage-safe feature table.
 
-### Stage 4 — Machine Learning
-- baseline;
+### Sprint 7 — ML models
+- DummyClassifier;
 - Logistic Regression;
 - Random Forest;
 - chronological validation;
-- порівняння метрик;
-- feature importance / explainability.
+- метрики та explainability.
 
-### Stage 5 — API
-- FastAPI;
-- endpoints для аналітики;
-- endpoint для демонстраційного агрегованого ML-прогнозу.
-
-### Stage 6 — Dashboard
-- KPI;
-- карта;
-- часові графіки;
-- регіональна аналітика;
+### Sprint 8 — ML in dashboard
+- API endpoint для експериментального агрегованого результату;
+- відображення метрик;
 - ML-блок з чітко позначеними обмеженнями.
 
-## 9. Принципи роботи з даними
+## 11. Принципи роботи з даними
 
 - використовуються лише документовані відкриті/доступні для дослідження джерела;
 - сирі дані не редагуються вручну;
@@ -229,22 +306,22 @@ attack_events
 - `null` не перетворюється на `0`, якщо джерело не повідомляє нуль явно;
 - неоднозначна географія не перетворюється на точну координату без доказового правила;
 - raw source snapshots та processed dataset builds версіонуються;
+- SQLite DB є generated artifact, а не джерелом істини;
 - API keys/tokens не комітяться;
 - оперативно чутливі сценарії та точне прогнозування цілей не входять до цілей проєкту;
 - моделі оцінюються як статистичні моделі на історичних даних, а не як система оперативного передбачення.
 
 Правила provenance/versioning: [docs/data_governance.md](docs/data_governance.md).
 
-## 10. Наступний крок
+## 12. Наступний крок
 
-Наступний практичний етап:
+Після SQLite foundation наступний практичний етап:
 
 1. завантажити versioned snapshot `missile_attacks_daily.csv`;
 2. зберегти metadata/checksum;
 3. реалізувати `src/ingestion/` parser;
 4. створити нормалізовані `attack_events`;
 5. окремо розібрати `target` у `attack_event_regions`;
-6. виконати перший EDA notebook;
-7. перевірити, які записи реально придатні для oblast-level ML labels.
-
-Після цього можна переходити до feature engineering та першої baseline-моделі.
+6. завантажити результат у SQLite;
+7. виконати перший SQL/EDA аналіз;
+8. перевірити, які записи реально придатні для oblast-level ML labels.
