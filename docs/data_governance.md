@@ -179,9 +179,10 @@ At minimum, every processed build should test:
 
 - required columns exist;
 - timestamps parse successfully;
-- `time_end >= time_start` where both exist;
+- `time_end >= time_start` when start/end have comparable source precision;
 - count fields are non-negative;
 - null is not silently converted to zero;
+- structured source values are preserved when a scalar canonical field is derived from them;
 - duplicate source records are identified;
 - region mappings use only the canonical region table;
 - source rows with ambiguous target geography remain flagged rather than force-mapped;
