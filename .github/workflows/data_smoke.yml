@@ -1,0 +1,45 @@
+name: Primary Data Smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/data_smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-primary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Acquire current public dataset
+        run: python -m src.ingestion.acquire_primary --snapshot-date ci --force
+
+      - name: Build SQLite from current snapshot
+        run: |
+          python -m src.db.load_primary             --snapshot-dir data/raw/piterfm_massive_missile_attacks/ci             --db /tmp/airstrikes-real.db > /tmp/primary-build-summary.json
+
+      - name: Show build summary
+        run: cat /tmp/primary-build-summary.json
+
+      - name: Upload summary only
+        uses: actions/upload-artifact@v4
+        with:
+          name: primary-build-summary
+          path: /tmp/primary-build-summary.json
+          retention-days: 7
