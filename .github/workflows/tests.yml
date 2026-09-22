@@ -28,7 +28,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pandas fastapi python-dotenv
+        run: pip install pandas scikit-learn fastapi python-dotenv
 
       - name: Initialize SQLite
         run: python -m src.db.init_db --db /tmp/airstrikes-test.db
