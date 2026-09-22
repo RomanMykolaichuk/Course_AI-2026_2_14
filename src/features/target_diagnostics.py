@@ -45,7 +45,7 @@ def _binary_balance(
     frame: pd.DataFrame,
     threshold: float,
 ) -> dict[str, Any]:
-    label = frame["source_event_count"].astype(float).gt(threshold)
+    label = frame["source_event_count"].astype(float).ge(threshold)
     positives = int(label.sum())
     rows = int(len(label))
     negatives = rows - positives
@@ -105,7 +105,7 @@ def diagnose_national_targets(
             and balance["test"]["contains_both_classes"]
         )
         binary_candidates[name] = {
-            "definition": "source_event_count > training-derived threshold",
+            "definition": "source_event_count >= training-derived threshold",
             "threshold": round(threshold, 6),
             "status": (
                 "evaluable_retrospectively"
