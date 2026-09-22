@@ -13,6 +13,7 @@ CORE_TABLES = (
     "alert_intervals",
     "weather_observations",
     "dataset_builds",
+    "model_evaluations",
 )
 
 
@@ -216,4 +217,48 @@ def get_attribution_coverage(db_path: str | Path | None = None) -> dict[str, Any
     total = result["events"]
     linked = result["events_with_region_link"]
     result["coverage_pct"] = round((linked / total * 100), 2) if total else 0.0
+    return result
+
+def get_latest_model_evaluation(
+    db_path: str | Path | None = None,
+    task: str | None = None,
+) -> dict[str, Any] | None:
+    """Return the most recent recorded retrospective model evaluation."""
+    sql = """
+        SELECT
+            evaluation_id,
+            source_build_id,
+            task,
+            target_name,
+            evaluated_at,
+            deployment_status,
+            comparison_json,
+            validation_json,
+            test_json,
+            notes
+        FROM model_evaluations
+    """
+    params: tuple[Any, ...] = ()
+    if task:
+        sql += " WHERE task = ?"
+        params = (task,)
+    sql += " ORDER BY evaluated_at DESC, evaluation_id DESC LIMIT 1;"
+
+    with connect(db_path) as connection:
+        row = connection.execute(sql, params).fetchone()
+
+    if row is None:
+        return None
+
+    result = dict(row)
+    import json
+
+    for field in ("comparison_json", "validation_json", "test_json"):
+        raw = result.pop(field)
+        result[field.replace("_json", "")] = json.loads(raw)
+    if result.get("notes"):
+        try:
+            result["notes"] = json.loads(result["notes"])
+        except (TypeError, json.JSONDecodeError):
+            pass
     return result
