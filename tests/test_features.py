@@ -217,12 +217,66 @@ class MlQualityGateTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
+    def test_single_class_temporal_evaluation_is_blocked(self) -> None:
+        db = Path(self.temp.name) / "single-class.db"
+        initialize_database(db)
+        seed_regions(db)
+
+        dates = pd.date_range("2026-01-01", periods=50, freq="D")
+        rows = [
+            (
+                f"d{index}",
+                date.strftime("%Y-%m-%d"),
+                "Model",
+                "UAV",
+                "test",
+                "snapshot",
+            )
+            for index, date in enumerate(dates)
+        ]
+
+        with connect(db) as connection:
+            connection.executemany(
+                """
+                INSERT INTO attack_events (
+                    event_id, time_start, weapon_model, weapon_category,
+                    source_name, source_snapshot
+                )
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                rows,
+            )
+            connection.execute(
+                """
+                INSERT INTO dataset_builds (
+                    build_id, source_name, source_snapshot,
+                    transformation_version, rows_loaded
+                )
+                VALUES ('single-class-build', 'test', 'snapshot', 'test-v1', 50);
+                """
+            )
+            connection.commit()
+
+        gate = build_ml_quality_gate(db)
+
+        self.assertEqual(
+            gate["national_daily_binary_classification"]["status"],
+            "blocked_single_class_evaluation",
+        )
+        split = gate["national_daily_binary_classification"]["split"]
+        self.assertEqual(split["validation"]["negative_source_days"], 0)
+        self.assertEqual(split["test"]["negative_source_days"], 0)
+
     def test_medium_only_regional_labels_are_blocked(self) -> None:
         gate = build_ml_quality_gate(self.db)
 
         self.assertEqual(
-            gate["national_daily_historical_backtest"]["status"],
+            gate["national_daily_feature_generation"]["status"],
             "allowed",
+        )
+        self.assertEqual(
+            gate["national_daily_binary_classification"]["status"],
+            "insufficient_data",
         )
         self.assertEqual(
             gate["oblast_level_training"]["status"],
