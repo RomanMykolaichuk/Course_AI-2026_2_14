@@ -128,6 +128,33 @@ def _normalize_time(value: object, row_number: int, field: str) -> str | None:
     return timestamp.isoformat().replace("+00:00", "Z")
 
 
+def _validate_time_order(
+    time_start: str,
+    time_end: str | None,
+    row_number: int,
+) -> None:
+    """Validate order only when start/end have comparable temporal precision."""
+    if time_end is None:
+        return
+
+    start_is_date = bool(DATE_ONLY.fullmatch(time_start))
+    end_is_date = bool(DATE_ONLY.fullmatch(time_end))
+
+    if start_is_date != end_is_date:
+        return
+
+    if start_is_date:
+        valid = time_end >= time_start
+    else:
+        valid = pd.Timestamp(time_end) >= pd.Timestamp(time_start)
+
+    if not valid:
+        raise ValueError(
+            f"Row {row_number}: time_end precedes time_start "
+            f"({time_start!r} -> {time_end!r})"
+        )
+
+
 def _first_url(value: object) -> str | None:
     text = _optional_text(value)
     if not text:
@@ -190,6 +217,7 @@ def transform_primary_dataset(
             raise ValueError(f"Row {row_number}: time_start is required")
 
         time_end = _normalize_time(row.get("time_end"), row_number, "time_end")
+        _validate_time_order(time_start, time_end, row_number)
         model = _optional_text(row.get("model"))
         launch_place = _optional_text(row.get("launch_place"))
         target_raw = _optional_text(row.get("target"))
