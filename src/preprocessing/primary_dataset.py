@@ -207,16 +207,27 @@ def transform_primary_dataset(
         if explicit_codes or target_codes:
             any_region_events += 1
 
-    events = pd.DataFrame(event_rows)
-    links = pd.DataFrame(
-        link_rows,
-        columns=[
-            "event_id",
-            "region_code",
-            "relation_type",
-            "attribution_method",
-            "attribution_quality",
-        ],
+    events = (
+        pd.DataFrame(event_rows)
+        .drop_duplicates(subset=["event_id"], keep="last")
+        .reset_index(drop=True)
+    )
+    links = (
+        pd.DataFrame(
+            link_rows,
+            columns=[
+                "event_id",
+                "region_code",
+                "relation_type",
+                "attribution_method",
+                "attribution_quality",
+            ],
+        )
+        .drop_duplicates(
+            subset=["event_id", "region_code", "relation_type"],
+            keep="last",
+        )
+        .reset_index(drop=True)
     )
 
     stats = {
