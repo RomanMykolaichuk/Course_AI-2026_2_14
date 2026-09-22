@@ -41,7 +41,7 @@ class PrimaryTransformationTests(unittest.TestCase):
                         "launched": 10,
                         "destroyed": 8,
                         "not_reach_goal": 1,
-                        "border_crossing": "{}",
+                        "border_crossing": "{'poland': 8}",
                         "still_attacking": 1,
                         "source": "https://example.org/report",
                     }
@@ -60,7 +60,8 @@ class PrimaryTransformationTests(unittest.TestCase):
 
             self.assertEqual(len(events), 1)
             self.assertEqual(events.iloc[0]["weapon_category"], "UAV")
-            self.assertTrue(pd.isna(events.iloc[0]["border_crossing"]))
+            self.assertEqual(events.iloc[0]["border_crossing"], 8)
+            self.assertEqual(events.iloc[0]["border_crossing_raw"], "{'poland': 8}")
             self.assertTrue(str(events.iloc[0]["time_start"]).endswith("Z"))
             self.assertEqual(stats["events_with_explicit_regions"], 1)
 
