@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS attack_events (
     destroyed INTEGER CHECK (destroyed IS NULL OR destroyed >= 0),
     not_reach_goal INTEGER CHECK (not_reach_goal IS NULL OR not_reach_goal >= 0),
     border_crossing INTEGER CHECK (border_crossing IS NULL OR border_crossing >= 0),
+    border_crossing_raw TEXT,
     still_attacking INTEGER CHECK (still_attacking IS NULL OR still_attacking >= 0),
     source_name TEXT NOT NULL,
     source_url TEXT,
