@@ -1,0 +1,11 @@
+pandas
+numpy
+matplotlib
+scikit-learn
+jupyter
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+python-dotenv
+requests
