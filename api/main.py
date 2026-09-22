@@ -1,14 +1,33 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 
 from src.db.connection import connect, get_db_path
-from src.db.queries import get_database_summary
+from src.db.queries import (
+    get_attribution_coverage,
+    get_category_summary,
+    get_daily_counts,
+    get_database_summary,
+    get_latest_build,
+    get_model_summary,
+    get_overview,
+    get_region_summary,
+)
 
 
 app = FastAPI(
     title="Ukraine Air Strike Analytics API",
-    version="0.2.0",
+    version="0.3.0",
     description="Educational API for retrospective analytics and ML demonstrations.",
 )
+
+
+def _require_database():
+    db_path = get_db_path()
+    if not db_path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="SQLite database is not initialized. Run: python -m src.db.init_db",
+        )
+    return db_path
 
 
 @app.get("/api/health")
@@ -31,10 +50,44 @@ def health() -> dict[str, str]:
 
 @app.get("/api/db/summary")
 def database_summary() -> dict:
-    db_path = get_db_path()
-    if not db_path.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="SQLite database is not initialized. Run: python -m src.db.init_db",
-        )
-    return get_database_summary(db_path)
+    return get_database_summary(_require_database())
+
+
+@app.get("/api/build/latest")
+def latest_build() -> dict:
+    result = get_latest_build(_require_database())
+    if result is None:
+        raise HTTPException(status_code=404, detail="No dataset builds recorded yet.")
+    return result
+
+
+@app.get("/api/stats/overview")
+def stats_overview() -> dict:
+    return get_overview(_require_database())
+
+
+@app.get("/api/stats/daily")
+def stats_daily() -> list[dict]:
+    return get_daily_counts(_require_database())
+
+
+@app.get("/api/stats/categories")
+def stats_categories() -> list[dict]:
+    return get_category_summary(_require_database())
+
+
+@app.get("/api/stats/models")
+def stats_models(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[dict]:
+    return get_model_summary(_require_database(), limit=limit)
+
+
+@app.get("/api/stats/regions")
+def stats_regions() -> list[dict]:
+    return get_region_summary(_require_database())
+
+
+@app.get("/api/stats/attribution")
+def stats_attribution() -> dict:
+    return get_attribution_coverage(_require_database())
