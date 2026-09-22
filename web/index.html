@@ -1,14 +1,188 @@
 <!doctype html>
-<html lang="en">
+<html lang="uk">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Air Strike Analytics</title>
+  <meta name="description" content="Навчальна панель ретроспективної аналітики історичних відкритих даних про повітряні атаки.">
+  <title>Ukraine Air Strike Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="/js/app.js" defer></script>
 </head>
 <body>
-  <main>
-    <h1>Ukraine Air Strike Analytics</h1>
-    <p>Dashboard scaffold. Data visualizations will be added after the first dataset is normalized.</p>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">Навчальна інформаційно-аналітична система</p>
+      <h1>Ukraine Air Strike Analytics</h1>
+      <p class="subtitle">Ретроспективний аналіз відкритих історичних даних</p>
+    </div>
+    <div class="status-wrap">
+      <span id="api-status" class="status-pill">Перевірка БД…</span>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="notice" aria-label="Обмеження">
+      <strong>Історична аналітика.</strong>
+      Панель не є системою оперативного попередження і не прогнозує точні майбутні цілі, маршрути чи місця ударів.
+      Регіональна статистика відображає лише записи, для яких у джерелі вдалося отримати явну адміністративну прив’язку.
+    </section>
+
+    <section id="setup-message" class="setup-message hidden">
+      <h2>Локальна база ще не готова</h2>
+      <p>Виконайте послідовно:</p>
+      <code>python -m src.ingestion.acquire_primary</code>
+      <code>python -m src.db.load_primary</code>
+      <code>uvicorn api.main:app --reload</code>
+    </section>
+
+    <section id="dashboard" class="dashboard hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Огляд</p>
+          <h2>Історичний набір даних</h2>
+        </div>
+        <p id="build-meta" class="build-meta"></p>
+      </div>
+
+      <div class="kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">Canonical events</span>
+          <strong id="kpi-events">—</strong>
+          <small>після нормалізації та deduplication</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Період</span>
+          <strong id="kpi-period">—</strong>
+          <small>за поточним snapshot</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Відомо запущено</span>
+          <strong id="kpi-launched">—</strong>
+          <small>сума лише непорожніх source counts</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Відомо знищено</span>
+          <strong id="kpi-destroyed">—</strong>
+          <small>сума лише непорожніх source counts</small>
+        </article>
+        <article class="kpi-card emphasis">
+          <span class="kpi-label">Region attribution</span>
+          <strong id="kpi-coverage">—</strong>
+          <small id="kpi-coverage-note">coverage canonical events</small>
+        </article>
+      </div>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Timeline</p>
+            <h2>Кількість записів за днями</h2>
+          </div>
+          <span class="panel-note">1 точка = calendar date у canonical dataset</span>
+        </div>
+        <div class="chart-box chart-box-wide">
+          <canvas id="daily-chart"></canvas>
+        </div>
+      </section>
+
+      <div class="two-column">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Categories</p>
+              <h2>Категорії засобів</h2>
+            </div>
+          </div>
+          <div class="chart-box">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Data quality</p>
+              <h2>Якість регіональної прив’язки</h2>
+            </div>
+          </div>
+          <div class="coverage-block">
+            <div class="coverage-number" id="coverage-number">—</div>
+            <p id="coverage-text">—</p>
+            <div class="confidence-grid">
+              <div><span>High</span><strong id="coverage-high">—</strong></div>
+              <div><span>Medium</span><strong id="coverage-medium">—</strong></div>
+              <div><span>Low</span><strong id="coverage-low">—</strong></div>
+            </div>
+            <p class="caveat">
+              Відсутність region link не означає відсутність події в регіоні. Це показник повноти доступної географічної розмітки.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="two-column">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Models</p>
+              <h2>Найчастіше представлені моделі</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Модель</th>
+                  <th>Категорія</th>
+                  <th>Записи</th>
+                </tr>
+              </thead>
+              <tbody id="models-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Regions</p>
+              <h2>Регіони з доступною прив’язкою</h2>
+            </div>
+          </div>
+          <p class="caveat">
+            Це не рейтинг інтенсивності по всій Україні. Таблиця охоплює лише події з canonical region evidence.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Регіон</th>
+                  <th>Записи</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="regions-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Provenance</p>
+            <h2>Поточна збірка даних</h2>
+          </div>
+        </div>
+        <dl id="provenance" class="provenance-grid"></dl>
+      </section>
+    </section>
   </main>
+
+  <footer>
+    <span>Course_AI-2026_2_14</span>
+    <span>Retrospective educational analytics</span>
+  </footer>
 </body>
 </html>
