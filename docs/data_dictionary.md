@@ -42,7 +42,8 @@ One row represents one normalized source observation for a specific attack inter
 | launched | INTEGER | no | Number launched; null means unknown, not zero |
 | destroyed | INTEGER | no | Number destroyed; null means unknown |
 | not_reach_goal | INTEGER | no | Number reported as not reaching the target |
-| border_crossing | INTEGER | no | Number reported as crossing out of Ukraine |
+| border_crossing | INTEGER | no | Derived total when the source value is numeric or a parseable destination→count mapping |
+| border_crossing_raw | TEXT | no | Original source representation, including structured values such as destination→count mappings |
 | still_attacking | INTEGER | no | Number still attacking at report time |
 | source_name | TEXT | yes | Dataset/source identifier |
 | source_url | TEXT | no | URL of original source record/page where available |
@@ -177,7 +178,7 @@ Do not use as predictors:
 | `launched` | `launched` | integer/null; never replace null with zero |
 | `destroyed` | `destroyed` | integer/null |
 | `not_reach_goal` | `not_reach_goal` | integer/null |
-| `border_crossing` | `border_crossing` | integer/null |
+| `border_crossing` | `border_crossing`, `border_crossing_raw` | preserve source text; derive total from numeric values or parseable destination→count mappings |
 | `still_attacking` | `still_attacking` | integer/null |
 | source field/page | `source_url` | preserve where available |
 
@@ -204,3 +205,15 @@ Current primary-source handling:
 - dashboard: convert full timestamps to `Europe/Kyiv` for presentation when appropriate.
 
 This distinction prevents false temporal precision from being introduced during ETL.
+
+## Mixed temporal precision
+
+The primary source may mix date-only values with full date-time values. Because these have different precision, SQLite does not enforce a text-level `time_end >= time_start` constraint.
+
+ETL validates temporal order only when both values have comparable precision:
+
+- date + date: compare calendar dates;
+- datetime + datetime: compare normalized UTC instants;
+- date + datetime (or datetime + date): preserve both values and do not infer an unavailable hour.
+
+This prevents a source date from being silently converted into a fabricated midnight timestamp.
