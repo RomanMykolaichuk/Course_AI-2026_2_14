@@ -120,8 +120,31 @@ def build_national_daily_features(
     ).dt.days
 
     daily["history_days_available"] = daily.index.astype("int64")
+
+    # Keep current-day source aggregates out of the exported ML table.
+    # They are used only to construct the label and lagged historical features;
+    # retaining them as columns would make accidental target leakage too easy.
+    predictor_columns = [
+        "date",
+        "source_event_present",
+        "day_of_week",
+        "month",
+        "day_of_year",
+        "is_weekend",
+        "event_count_lag1",
+        "event_count_lag7",
+        "launched_known_lag1",
+        "uav_event_count_lag1",
+        "missile_event_count_lag1",
+        "event_count_roll7_prior",
+        "event_count_roll30_prior",
+        "launched_roll7_prior",
+        "days_since_previous_source_event",
+        "history_days_available",
+    ]
+
     daily["date"] = daily["date"].dt.strftime("%Y-%m-%d")
-    return daily
+    return daily[predictor_columns].copy()
 
 
 def feature_manifest(
@@ -148,8 +171,8 @@ def feature_manifest(
             "not be interpreted as proof that no real-world attack occurred."
         ),
         "feature_timing": (
-            "All lag/rolling activity features use only dates strictly before "
-            "the label date."
+            "All activity predictors use only dates strictly before the label date. "
+            "Current-day event/count aggregates are not exported as model features."
         ),
         "intended_use": "historical backtesting and education only",
         "columns": list(features.columns),
