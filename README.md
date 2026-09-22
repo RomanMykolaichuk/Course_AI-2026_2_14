@@ -295,17 +295,23 @@ python -m src.db.check_db
 - [x] перевірити SQLite integrity/foreign keys на актуальному dataset.
 
 ### Sprint 3 — EDA + SQL analytics
-- дослідити пропуски та дублікати;
-- проаналізувати неоднозначні target fields;
-- створити базові SQL queries;
-- побудувати перші графіки;
-- визначити придатність даних для oblast-level ML labels.
+- [x] додати reusable SQLite analytics queries;
+- [x] додати overview та daily timeline;
+- [x] додати category/model summaries;
+- [x] додати region-attribution coverage;
+- [x] додати evidence-only region summary;
+- [x] додати `sql/analytics.sql` як навчальні SQL-приклади;
+- [x] перевірити analytics queries на synthetic SQLite;
+- [x] перевірити analytics report на актуальному real-data build.
 
 ### Sprint 4 — FastAPI + first dashboard
-- перший analytics endpoint;
-- daily timeline;
-- KPI;
-- перший Chart.js графік.
+- [x] expose analytics endpoints через FastAPI;
+- [x] додати KPI;
+- [x] додати daily Chart.js timeline;
+- [x] додати category chart;
+- [x] додати model/region tables;
+- [x] явно показати region-attribution coverage/confidence;
+- [x] віддавати `web/` через той самий FastAPI application.
 
 ### Sprint 5 — Regional map
 - canonical region reference;
@@ -367,13 +373,43 @@ Build ID: `primary-8278a8d28145b9c1`.
 
 Важливе спостереження: поточний завантажений `missile_attacks_daily.csv` не містить колонки `affected_region`, хоча вона описана у Data Card джерела. Тому для цього snapshot регіональна прив’язка формується лише з явних адміністративних згадок у `target`; це неповне покриття і його не можна трактувати як повну oblast-level розмітку.
 
-## 13. Наступний крок
+## 13. Запуск dashboard
 
-**Sprint 3 — EDA + SQL analytics**:
+Після acquisition та SQLite load:
 
-1. додати reusable SQL queries для overview, daily timeline, weapon categories/models та region-attribution coverage;
-2. експортувати ці результати через FastAPI;
-3. додати unit tests на тимчасовій SQLite;
-4. після цього перейти до першого Chart.js dashboard.
+```bash
+uvicorn api.main:app --reload
+```
 
-Регіональну ML-розмітку поки не розширюємо за рахунок припущень із назв міст.
+Відкрити:
+
+```text
+http://127.0.0.1:8000/
+```
+
+FastAPI віддає і API, і `web/` з одного origin. Основні endpoints:
+
+```text
+GET /api/health
+GET /api/build/latest
+GET /api/stats/overview
+GET /api/stats/daily
+GET /api/stats/categories
+GET /api/stats/models
+GET /api/stats/regions
+GET /api/stats/attribution
+```
+
+Поточний dashboard показує лише ретроспективну аналітику. Показники `launched_known_total` та `destroyed_known_total` — суми відомих числових значень у джерелі, а не твердження про повноту всіх реальних запусків/знищень.
+
+## 14. Наступний крок
+
+**Sprint 5 — Regional map**:
+
+1. завантажити versioned geoBoundaries ADM1 snapshot;
+2. зіставити canonical `region_code` з геометрією;
+3. додати GeoJSON endpoint;
+4. інтегрувати Leaflet;
+5. показувати лише available region evidence з помітним coverage indicator.
+
+До ML переходимо лише після окремої оцінки придатності регіональної розмітки; поточні 23.97% region-link coverage не слід автоматично вважати достатнім oblast-level training label.
