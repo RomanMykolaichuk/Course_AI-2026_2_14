@@ -117,7 +117,7 @@ def load_primary_snapshot(
             "missiles_and_uavs.csv": weapons_sha,
         },
         "code_commit_sha": commit_sha,
-        "transformation_version": "primary-v1",
+        "transformation_version": "primary-v2",
         "stats": stats,
     }
     processed_dir = _write_processed(snapshot, events, links, manifest)
@@ -138,6 +138,7 @@ def load_primary_snapshot(
         "destroyed",
         "not_reach_goal",
         "border_crossing",
+        "border_crossing_raw",
         "still_attacking",
         "source_name",
         "source_url",
@@ -175,6 +176,7 @@ def load_primary_snapshot(
                 destroyed = excluded.destroyed,
                 not_reach_goal = excluded.not_reach_goal,
                 border_crossing = excluded.border_crossing,
+                border_crossing_raw = excluded.border_crossing_raw,
                 still_attacking = excluded.still_attacking,
                 source_url = excluded.source_url,
                 source_record_id = excluded.source_record_id,
@@ -216,7 +218,7 @@ def load_primary_snapshot(
                 snapshot_label,
                 attacks_sha,
                 commit_sha,
-                "primary-v1",
+                "primary-v2",
                 built_at,
                 len(events),
                 json.dumps(
