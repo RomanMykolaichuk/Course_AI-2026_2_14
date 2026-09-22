@@ -99,4 +99,24 @@ def stats_attribution() -> dict:
     return get_attribution_coverage(_require_database())
 
 
+@app.get("/api/map/regions")
+def region_map() -> dict:
+    db_path = _require_database()
+    try:
+        return build_region_geojson(db_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "ADM1 geometry is not initialized. Run: "
+                "python -m src.ingestion.acquire_boundaries"
+            ),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"ADM1 geometry mapping failed: {exc}",
+        ) from exc
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
