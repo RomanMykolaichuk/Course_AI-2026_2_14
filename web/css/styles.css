@@ -214,6 +214,37 @@ small {
 
 .chart-box-wide { height: 390px; }
 
+.map-caveat {
+  max-width: 980px;
+  margin-top: 12px;
+}
+
+.region-map {
+  height: 560px;
+  margin-top: 18px;
+  border: 1px solid #d8dee4;
+  border-radius: 12px;
+  background: #eef2f4;
+  overflow: hidden;
+}
+
+.region-map.leaflet-container {
+  background: #eef2f4;
+  font: inherit;
+}
+
+.map-status {
+  margin-top: 10px;
+  color: #6a7882;
+  font-size: .74rem;
+  line-height: 1.45;
+}
+
+.map-popup {
+  min-width: 190px;
+  line-height: 1.45;
+}
+
 .coverage-block { padding-top: 24px; }
 
 .coverage-number {
@@ -352,5 +383,6 @@ footer {
   .kpi-grid { grid-template-columns: 1fr; }
   .provenance-grid { grid-template-columns: 1fr; }
   .chart-box { height: 300px; }
+  .region-map { height: 420px; }
   .panel-note, .build-meta { text-align: left; }
 }
