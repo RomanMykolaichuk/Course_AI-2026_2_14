@@ -14,6 +14,24 @@ from src.db.queries import get_latest_build
 
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "processed" / "ml" / "national_daily"
 
+MODEL_FEATURE_COLUMNS = [
+    "day_of_week",
+    "month",
+    "day_of_year",
+    "is_weekend",
+    "event_count_lag1",
+    "event_count_lag7",
+    "launched_known_lag1",
+    "uav_event_count_lag1",
+    "missile_event_count_lag1",
+    "event_count_roll7_prior",
+    "event_count_roll30_prior",
+    "launched_roll7_prior",
+    "days_since_previous_source_event",
+    "history_days_available",
+]
+LABEL_COLUMN = "source_event_present"
+
 
 def _daily_source_aggregates(
     db_path: str | Path | None = None,
@@ -124,27 +142,36 @@ def build_national_daily_features(
     # Keep current-day source aggregates out of the exported ML table.
     # They are used only to construct the label and lagged historical features;
     # retaining them as columns would make accidental target leakage too easy.
-    predictor_columns = [
-        "date",
-        "source_event_present",
-        "day_of_week",
-        "month",
-        "day_of_year",
-        "is_weekend",
-        "event_count_lag1",
-        "event_count_lag7",
-        "launched_known_lag1",
-        "uav_event_count_lag1",
-        "missile_event_count_lag1",
-        "event_count_roll7_prior",
-        "event_count_roll30_prior",
-        "launched_roll7_prior",
-        "days_since_previous_source_event",
-        "history_days_available",
-    ]
+    export_columns = ["date", LABEL_COLUMN, *MODEL_FEATURE_COLUMNS]
 
     daily["date"] = daily["date"].dt.strftime("%Y-%m-%d")
-    return daily[predictor_columns].copy()
+    return daily[export_columns].copy()
+
+
+def model_ready_national_daily(features: pd.DataFrame) -> pd.DataFrame:
+    """Return rows that can be used by baseline models without imputation.
+
+    The first days naturally have missing lag/history values. For the initial
+    educational baseline we drop those rows instead of imputing future-unknown
+    history or introducing a more complex preprocessing pipeline.
+    """
+    required = ["date", LABEL_COLUMN, *MODEL_FEATURE_COLUMNS]
+    missing = [column for column in required if column not in features.columns]
+    if missing:
+        raise ValueError(
+            "National daily feature table is missing required columns: "
+            + ", ".join(missing)
+        )
+
+    ready = (
+        features[required]
+        .dropna(subset=MODEL_FEATURE_COLUMNS)
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
+    if ready.empty:
+        raise ValueError("No model-ready rows remain after lag/history filtering")
+    return ready
 
 
 def feature_manifest(
@@ -164,7 +191,8 @@ def feature_manifest(
         "positive_source_days": positives,
         "negative_source_days": rows - positives,
         "positive_rate": round(positives / rows, 6) if rows else None,
-        "label": "source_event_present",
+        "label": LABEL_COLUMN,
+        "model_feature_columns": MODEL_FEATURE_COLUMNS,
         "label_semantics": (
             "1 means at least one canonical source event exists on that date; "
             "0 means no canonical source record exists for that date and must "
