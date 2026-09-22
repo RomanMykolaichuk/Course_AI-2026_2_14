@@ -80,6 +80,23 @@ CREATE TABLE IF NOT EXISTS dataset_builds (
     notes TEXT
 );
 
+CREATE TABLE IF NOT EXISTS model_evaluations (
+    evaluation_id TEXT PRIMARY KEY,
+    source_build_id TEXT,
+    task TEXT NOT NULL,
+    target_name TEXT NOT NULL,
+    evaluated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    deployment_status TEXT NOT NULL,
+    comparison_json TEXT NOT NULL,
+    validation_json TEXT NOT NULL,
+    test_json TEXT NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (source_build_id) REFERENCES dataset_builds(build_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_evaluations_task_time
+    ON model_evaluations (task, evaluated_at);
+
 CREATE INDEX IF NOT EXISTS idx_attack_events_time_start
     ON attack_events (time_start);
 
