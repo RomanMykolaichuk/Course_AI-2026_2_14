@@ -21,6 +21,7 @@ on:
       - "src/features/split.py"
       - "src/features/target_diagnostics.py"
       - "src/models/historical_count_backtest.py"
+      - "src/models/record_evaluation.py"
       - "sql/schema.sql"
   workflow_dispatch:
 
@@ -91,6 +92,26 @@ jobs:
             --db /tmp/airstrikes-real.db \
             --output /tmp/ml-backtest.json
 
+      - name: Record retrospective evaluation metrics
+        run: |
+          python -m src.models.record_evaluation \
+            --db /tmp/airstrikes-real.db > /tmp/ml-recorded-evaluation.json
+
+      - name: Re-check SQLite after evaluation registry write
+        run: python -m src.db.check_db --db /tmp/airstrikes-real.db
+
+      - name: Verify recorded evaluation can be read back
+        run: |
+          python - <<'PY' > /tmp/ml-readback.json
+          import json
+          from src.db.queries import get_latest_model_evaluation
+
+          result = get_latest_model_evaluation("/tmp/airstrikes-real.db")
+          if result is None:
+              raise SystemExit("No recorded model evaluation found.")
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+
       - name: Show summaries
         run: |
           cat /tmp/primary-build-summary.json
@@ -100,6 +121,8 @@ jobs:
           cat /tmp/ml-target-diagnostics.json
           cat /tmp/ml-quality-gate.json
           cat /tmp/ml-backtest.json
+          cat /tmp/ml-recorded-evaluation.json
+          cat /tmp/ml-readback.json
 
       - name: Upload summaries only
         uses: actions/upload-artifact@v4
@@ -113,4 +136,6 @@ jobs:
             /tmp/ml-target-diagnostics.json
             /tmp/ml-quality-gate.json
             /tmp/ml-backtest.json
+            /tmp/ml-recorded-evaluation.json
+            /tmp/ml-readback.json
           retention-days: 7
