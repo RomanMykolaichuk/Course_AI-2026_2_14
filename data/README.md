@@ -55,9 +55,18 @@ Only reproducible code-generated outputs should be placed here.
 
 Stable reference/enrichment files.
 
-Examples:
+The geoBoundaries acquisition command creates:
 
-- geoBoundaries ADM1 geometry;
+```text
+data/external/geoboundaries/<boundaryID>/
+├── UKR_ADM1.geojson
+└── metadata.json
+```
+
+For the 2026-09-22 baseline this resolves to `UKR-ADM1-14850775`.
+
+Other examples:
+
 - region lookup tables;
 - small reference dictionaries.
 
@@ -73,7 +82,7 @@ Examples:
 
 ```text
 kaggle_piterfm_missile_attacks_daily_2026-09-22.csv
-geoboundaries_UKR_ADM1_2026-09-22.geojson
+geoboundaries/UKR-ADM1-14850775/UKR_ADM1.geojson
 ```
 
 ## Metadata sidecar
