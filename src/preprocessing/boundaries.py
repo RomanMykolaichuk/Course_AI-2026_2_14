@@ -12,6 +12,37 @@ from src.db.connection import PROJECT_ROOT
 DEFAULT_ROOT = PROJECT_ROOT / "data" / "external" / "geoboundaries"
 
 
+GIS_ISO_CODES: dict[str, str] = {
+    "UA-05": "vinnytsia_oblast",
+    "UA-07": "volyn_oblast",
+    "UA-09": "luhansk_oblast",
+    "UA-12": "dnipropetrovsk_oblast",
+    "UA-14": "donetsk_oblast",
+    "UA-18": "zhytomyr_oblast",
+    "UA-21": "zakarpattia_oblast",
+    "UA-23": "zaporizhzhia_oblast",
+    "UA-26": "ivano_frankivsk_oblast",
+    "UA-30": "kyiv_city",
+    "UA-32": "kyiv_oblast",
+    "UA-35": "kirovohrad_oblast",
+    "UA-40": "sevastopol_city",
+    "UA-43": "crimea",
+    "UA-46": "lviv_oblast",
+    "UA-48": "mykolaiv_oblast",
+    "UA-51": "odesa_oblast",
+    "UA-53": "poltava_oblast",
+    "UA-56": "rivne_oblast",
+    "UA-59": "sumy_oblast",
+    "UA-61": "ternopil_oblast",
+    "UA-63": "kharkiv_oblast",
+    "UA-65": "kherson_oblast",
+    "UA-68": "khmelnytskyi_oblast",
+    "UA-71": "cherkasy_oblast",
+    "UA-74": "chernihiv_oblast",
+    "UA-77": "chernivtsi_oblast",
+}
+
+
 GIS_ALIASES: dict[str, str] = {
     "vinnytsia": "vinnytsia_oblast",
     "vinnytska": "vinnytsia_oblast",
@@ -122,7 +153,15 @@ def normalize_boundary_name(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def match_boundary_region_code(name: object) -> str | None:
+def match_boundary_region_code(
+    name: object,
+    shape_iso: object = None,
+) -> str | None:
+    if shape_iso is not None:
+        iso = str(shape_iso).strip().upper()
+        if iso in GIS_ISO_CODES:
+            return GIS_ISO_CODES[iso]
+
     if name is None:
         return None
     normalized = normalize_boundary_name(str(name))
@@ -173,7 +212,10 @@ def canonicalize_boundaries(
             or properties.get("name")
             or properties.get("NAME_1")
         )
-        region_code = match_boundary_region_code(shape_name)
+        region_code = match_boundary_region_code(
+            shape_name,
+            properties.get("shapeISO"),
+        )
 
         if region_code is None:
             unmapped_names.append(str(shape_name))
