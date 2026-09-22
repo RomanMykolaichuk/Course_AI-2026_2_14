@@ -77,6 +77,15 @@ class HistoricalCountBacktestTests(unittest.TestCase):
                 self.assertIn("mae", model_metrics)
                 self.assertIn("rmse", model_metrics)
                 self.assertIn("r2", model_metrics)
+
+            self.assertIn(
+                result["deployment_gate"]["status"],
+                {"blocked_research_only", "manual_review_required"},
+            )
+            self.assertIn(
+                result["comparison"]["lowest_test_mae_model"],
+                {"naive_lag1", "dummy_median", "random_forest_fixed"},
+            )
         finally:
             temp.cleanup()
 
