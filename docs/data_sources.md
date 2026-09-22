@@ -42,7 +42,9 @@ Important files:
 - `missile_attacks_daily.csv` — historical attack records;
 - `missiles_and_uavs.csv` — reference information about missile/UAV models.
 
-Important fields in `missile_attacks_daily.csv` include:
+The source Data Card documents fields including `affected_region`, but the actual KaggleHub snapshot acquired on 2026-09-22 does **not** contain that column. The acquisition pipeline therefore records the exact CSV headers in snapshot metadata and treats `affected_region` as optional.
+
+Important fields observed/used in `missile_attacks_daily.csv` include:
 
 - `time_start`, `time_end`;
 - `model`;
@@ -68,6 +70,8 @@ It is machine-readable, directly aligned with the analytical topic, contains a l
 4. Null numerical values must remain null unless the source explicitly states zero.
 5. The dataset starts after the beginning of the full-scale invasion and should not be presented as complete coverage from 2022-02-24.
 6. License attribution, non-commercial and share-alike requirements must be respected when redistributing derived dataset artifacts.
+7. The documented schema and the downloadable CSV schema can differ; transformation code must rely on the acquired snapshot schema, not only on the Data Card.
+8. The 2026-09-22 snapshot lacks `affected_region`; oblast links for that build come only from conservative parsing of explicit administrative-region mentions in `target`.
 
 ## 2. Alert data
 
