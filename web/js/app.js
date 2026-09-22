@@ -3,6 +3,10 @@ const percentFormat = new Intl.NumberFormat("uk-UA", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const metricFormat = new Intl.NumberFormat("uk-UA", {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+});
 
 function el(id) {
   return document.getElementById(id);
@@ -263,6 +267,54 @@ function renderRegionMap(geojson) {
   setTimeout(() => map.invalidateSize(), 0);
 }
 
+function renderMlEvaluation(data) {
+  const validationModels = data.validation?.models || {};
+  const testModels = data.test?.models || {};
+  const modelNames = Array.from(
+    new Set([...Object.keys(validationModels), ...Object.keys(testModels)])
+  );
+
+  el("ml-evaluation-empty").classList.add("hidden");
+  el("ml-evaluation-content").classList.remove("hidden");
+
+  const status = el("ml-status");
+  status.textContent = data.deployment_status || "unknown";
+  status.className = "status-pill";
+  if (data.deployment_status === "blocked_research_only") {
+    status.classList.add("blocked");
+  }
+
+  el("ml-target").textContent = data.target_name || "—";
+  el("ml-source-build").textContent = data.source_build_id || "—";
+  el("ml-lowest-mae").textContent =
+    data.comparison?.lowest_test_mae_model || "—";
+  el("ml-highest-r2").textContent =
+    data.comparison?.highest_test_r2 === undefined
+      ? "—"
+      : metricFormat.format(data.comparison.highest_test_r2);
+
+  el("ml-metrics-body").innerHTML = modelNames.map((name) => {
+    const val = validationModels[name] || {};
+    const test = testModels[name] || {};
+    const fmt = (value) =>
+      value === undefined || value === null ? "—" : metricFormat.format(value);
+
+    return "<tr>" +
+      "<td>" + escapeHtml(name) + "</td>" +
+      "<td class=\"numeric\">" + fmt(val.mae) + "</td>" +
+      "<td class=\"numeric\">" + fmt(val.rmse) + "</td>" +
+      "<td class=\"numeric\">" + fmt(val.r2) + "</td>" +
+      "<td class=\"numeric\">" + fmt(test.mae) + "</td>" +
+      "<td class=\"numeric\">" + fmt(test.rmse) + "</td>" +
+      "<td class=\"numeric\">" + fmt(test.r2) + "</td>" +
+      "</tr>";
+  }).join("");
+
+  const reason = data.notes?.deployment_gate?.reason;
+  el("ml-note").textContent = reason ||
+    "Retrospective metrics only; no deployable model is exposed.";
+}
+
 function renderProvenance(build) {
   const items = [
     ["Build ID", build.build_id],
@@ -332,6 +384,15 @@ async function initializeDashboard() {
         "Карта недоступна: " + mapError.message +
         ". Виконайте python -m src.ingestion.acquire_boundaries";
       el("map-meta").textContent = "GeoJSON unavailable";
+    }
+
+    try {
+      const mlEvaluation = await fetchJson("/api/ml/evaluation/latest");
+      renderMlEvaluation(mlEvaluation);
+    } catch (mlError) {
+      console.error(mlError);
+      el("ml-status").textContent = "Evaluation unavailable";
+      el("ml-status").className = "status-pill";
     }
   } catch (error) {
     console.error(error);
