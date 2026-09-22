@@ -18,6 +18,7 @@ on:
       - "src/db/analytics_report.py"
       - "src/features/national_daily.py"
       - "src/features/quality_gate.py"
+      - "src/features/split.py"
       - "sql/schema.sql"
   workflow_dispatch:
 
@@ -76,6 +77,7 @@ jobs:
           cat /tmp/primary-build-summary.json
           cat /tmp/analytics-summary.json
           cat /tmp/ml-feature-summary.json
+          cat /tmp/ml-split-summary.json
           cat /tmp/ml-quality-gate.json
 
       - name: Upload summaries only
@@ -86,5 +88,6 @@ jobs:
             /tmp/primary-build-summary.json
             /tmp/analytics-summary.json
             /tmp/ml-feature-summary.json
+            /tmp/ml-split-summary.json
             /tmp/ml-quality-gate.json
           retention-days: 7
