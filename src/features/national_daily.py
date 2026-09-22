@@ -69,6 +69,38 @@ def _daily_source_aggregates(
     return frame
 
 
+def build_national_daily_targets(
+    db_path: str | Path | None = None,
+) -> pd.DataFrame:
+    """Return daily source-level targets on the complete source calendar."""
+    aggregates = _daily_source_aggregates(db_path)
+
+    calendar = pd.DataFrame(
+        {
+            "date": pd.date_range(
+                aggregates["date"].min(),
+                aggregates["date"].max(),
+                freq="D",
+            )
+        }
+    )
+    targets = calendar.merge(
+        aggregates[["date", "event_count"]],
+        on="date",
+        how="left",
+    )
+    targets["source_event_count"] = (
+        targets["event_count"].fillna(0).astype("int64")
+    )
+    targets["source_event_present"] = (
+        targets["source_event_count"] > 0
+    ).astype("int8")
+    targets["date"] = targets["date"].dt.strftime("%Y-%m-%d")
+    return targets[
+        ["date", "source_event_count", "source_event_present"]
+    ].copy()
+
+
 def build_national_daily_features(
     db_path: str | Path | None = None,
 ) -> pd.DataFrame:
