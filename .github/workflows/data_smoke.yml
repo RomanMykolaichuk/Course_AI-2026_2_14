@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - ".github/workflows/data_smoke.yml"
+      - "src/ingestion/**"
+      - "src/preprocessing/**"
+      - "src/db/**"
+      - "sql/schema.sql"
   workflow_dispatch:
 
 permissions:
