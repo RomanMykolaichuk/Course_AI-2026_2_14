@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Initialize SQLite
+        run: python -m src.db.init_db --db /tmp/airstrikes-test.db
+
+      - name: Check SQLite
+        run: python -m src.db.check_db --db /tmp/airstrikes-test.db
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
