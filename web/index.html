@@ -189,6 +189,49 @@
       <section class="panel panel-wide">
         <div class="panel-head">
           <div>
+            <p class="eyebrow">Offline ML backtest</p>
+            <h2>Історична оцінка моделі</h2>
+          </div>
+          <span id="ml-status" class="status-pill">Evaluation не записано</span>
+        </div>
+        <p class="caveat ml-caveat">
+          Це оцінка на вже відомих історичних датах. Вона не є прогнозом майбутньої атаки,
+          не формує прогноз для конкретного регіону і не надає live inference.
+        </p>
+        <div id="ml-evaluation-empty" class="ml-empty">
+          Запишіть retrospective metrics командою
+          <code>python -m src.models.record_evaluation</code>.
+        </div>
+        <div id="ml-evaluation-content" class="hidden">
+          <div class="ml-summary-grid">
+            <div><span>Target</span><strong id="ml-target">—</strong></div>
+            <div><span>Source build</span><strong id="ml-source-build">—</strong></div>
+            <div><span>Lowest test MAE</span><strong id="ml-lowest-mae">—</strong></div>
+            <div><span>Highest test R²</span><strong id="ml-highest-r2">—</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Validation MAE</th>
+                  <th>Validation RMSE</th>
+                  <th>Validation R²</th>
+                  <th>Test MAE</th>
+                  <th>Test RMSE</th>
+                  <th>Test R²</th>
+                </tr>
+              </thead>
+              <tbody id="ml-metrics-body"></tbody>
+            </table>
+          </div>
+          <p id="ml-note" class="caveat ml-result-note"></p>
+        </div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
             <p class="eyebrow">Provenance</p>
             <h2>Поточна збірка даних</h2>
           </div>
