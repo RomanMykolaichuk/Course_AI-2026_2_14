@@ -11,6 +11,7 @@ from src.db.queries import (
     get_daily_counts,
     get_database_summary,
     get_latest_build,
+    get_latest_model_evaluation,
     get_model_summary,
     get_overview,
     get_region_summary,
@@ -21,7 +22,7 @@ WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
 app = FastAPI(
     title="Ukraine Air Strike Analytics API",
-    version="0.5.0",
+    version="0.6.0",
     description="Educational API for retrospective analytics and ML demonstrations.",
 )
 
@@ -97,6 +98,20 @@ def stats_regions() -> list[dict]:
 @app.get("/api/stats/attribution")
 def stats_attribution() -> dict:
     return get_attribution_coverage(_require_database())
+
+
+@app.get("/api/ml/evaluation/latest")
+def latest_model_evaluation() -> dict:
+    result = get_latest_model_evaluation(_require_database())
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No retrospective model evaluation recorded. Run: "
+                "python -m src.models.record_evaluation"
+            ),
+        )
+    return result
 
 
 @app.get("/api/map/regions")
