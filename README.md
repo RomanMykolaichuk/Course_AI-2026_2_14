@@ -286,11 +286,13 @@ python -m src.db.check_db
 - [x] реалізувати primary-source parser;
 - [x] реалізувати canonical transformation;
 - [x] реалізувати завантаження `attack_events`;
-- [x] використовувати `affected_region` як primary region evidence;
+- [x] підтримати `affected_region` як primary region evidence, якщо поле присутнє у snapshot;
 - [x] використовувати explicit oblast mentions у `target` як conservative fallback;
 - [x] записувати provenance у `dataset_builds`;
 - [x] додати synthetic unit tests та GitHub Actions CI;
-- [ ] виконати локальний acquisition актуального raw snapshot і зафіксувати перший реальний build summary.
+- [x] виконати real-data acquisition/build через GitHub Actions;
+- [x] зафіксувати actual CSV schema у snapshot metadata;
+- [x] перевірити SQLite integrity/foreign keys на актуальному dataset.
 
 ### Sprint 3 — EDA + SQL analytics
 - дослідити пропуски та дублікати;
@@ -346,15 +348,32 @@ python -m src.db.check_db
 
 Правила provenance/versioning: [docs/data_governance.md](docs/data_governance.md).
 
-## 12. Наступний крок
+## 12. Реальний baseline build — 2026-09-22
 
-Код Sprint 2 готовий. Наступний практичний крок — виконати перший реальний end-to-end build:
+End-to-end smoke test на актуальному public Kaggle snapshot успішний:
 
-1. `python -m src.ingestion.acquire_primary`;
-2. `python -m src.db.load_primary`;
-3. перевірити build statistics і частку подій з надійним region attribution;
-4. виконати перший SQL/EDA аналіз;
-5. побудувати daily timeline та category summary;
-6. визначити, які записи реально придатні для oblast-level ML labels.
+```text
+source rows                  4152
+canonical events             4146
+region links                 1114
+events with any region       994
+weapon reference rows        64
+affected_region present      no
+SQLite integrity_check       ok
+foreign_key_check            ok
+```
 
-Після цього Sprint 3 переходить від структури проєкту до аналізу реальних даних.
+Build ID: `primary-8278a8d28145b9c1`.
+
+Важливе спостереження: поточний завантажений `missile_attacks_daily.csv` не містить колонки `affected_region`, хоча вона описана у Data Card джерела. Тому для цього snapshot регіональна прив’язка формується лише з явних адміністративних згадок у `target`; це неповне покриття і його не можна трактувати як повну oblast-level розмітку.
+
+## 13. Наступний крок
+
+**Sprint 3 — EDA + SQL analytics**:
+
+1. додати reusable SQL queries для overview, daily timeline, weapon categories/models та region-attribution coverage;
+2. експортувати ці результати через FastAPI;
+3. додати unit tests на тимчасовій SQLite;
+4. після цього перейти до першого Chart.js dashboard.
+
+Регіональну ML-розмітку поки не розширюємо за рахунок припущень із назв міст.
