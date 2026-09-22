@@ -141,6 +141,128 @@ function renderRegions(rows) {
   }).join("");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function evidenceColor(events, maxEvents, hasEvidence) {
+  if (!hasEvidence) return "#d5dce1";
+  const ratio = maxEvents > 0 ? events / maxEvents : 0;
+  if (ratio >= 0.75) return "#4f1d1d";
+  if (ratio >= 0.50) return "#7c2d2d";
+  if (ratio >= 0.25) return "#a94738";
+  if (ratio >= 0.10) return "#d57952";
+  return "#e9aa77";
+}
+
+function renderRegionMap(geojson) {
+  const status = el("map-status");
+
+  if (typeof L === "undefined") {
+    status.textContent = "Leaflet не завантажився; карта недоступна.";
+    return;
+  }
+
+  const evidenceValues = geojson.features
+    .filter((feature) => feature.properties?.has_region_evidence)
+    .map((feature) => Number(feature.properties.events || 0));
+  const maxEvents = Math.max(...evidenceValues, 0);
+
+  const map = L.map("region-map", {
+    zoomControl: true,
+    attributionControl: true,
+    minZoom: 4,
+    maxZoom: 9,
+  });
+
+  let layer = null;
+  layer = L.geoJSON(geojson, {
+    style: (feature) => {
+      const properties = feature.properties || {};
+      return {
+        color: "#ffffff",
+        weight: 1,
+        fillOpacity: properties.has_region_evidence ? 0.82 : 0.55,
+        fillColor: evidenceColor(
+          Number(properties.events || 0),
+          maxEvents,
+          Boolean(properties.has_region_evidence),
+        ),
+      };
+    },
+    onEachFeature: (feature, featureLayer) => {
+      const p = feature.properties || {};
+      const title = escapeHtml(
+        p.name_uk || p.name_en || p.shapeName || "Регіон"
+      );
+      const evidence = Boolean(p.has_region_evidence);
+
+      let evidenceText = "";
+      if (evidence) {
+        evidenceText =
+          "<strong>" + formatNumber(p.events) + " canonical events</strong><br>" +
+          "High confidence: " + formatNumber(p.high_confidence_events) + "<br>" +
+          "Medium confidence: " + formatNumber(p.medium_confidence_events) + "<br>" +
+          "Low confidence: " + formatNumber(p.low_confidence_events);
+      } else {
+        evidenceText =
+          "<strong>Немає canonical region evidence.</strong><br>" +
+          "Це не означає відсутність атак у регіоні.";
+      }
+
+      featureLayer.bindPopup(
+        '<div class="map-popup"><strong>' + title + "</strong><br>" +
+        evidenceText + "</div>"
+      );
+
+      featureLayer.on({
+        mouseover: (event) => {
+          event.target.setStyle({ weight: 2, color: "#253743" });
+        },
+        mouseout: (event) => {
+          layer.resetStyle(event.target);
+        },
+      });
+    },
+  }).addTo(map);
+
+  if (layer.getBounds().isValid()) {
+    map.fitBounds(layer.getBounds(), { padding: [12, 12] });
+  }
+
+  const metadata = geojson.metadata || {};
+  const coverage = Number(metadata.region_attribution_coverage_pct || 0);
+  const boundaryParts = [];
+  if (metadata.boundary_id) boundaryParts.push(metadata.boundary_id);
+  if (metadata.boundary_year_represented) {
+    boundaryParts.push("year " + metadata.boundary_year_represented);
+  }
+
+  el("map-meta").textContent =
+    (boundaryParts.join(" · ") || "ADM1") +
+    " · coverage " + percentFormat.format(coverage) + "%";
+
+  const statusParts = [];
+  if (metadata.boundary_source) {
+    statusParts.push("Geometry: " + metadata.boundary_source);
+  }
+  if (metadata.boundary_license) {
+    statusParts.push("License: " + metadata.boundary_license);
+  }
+  statusParts.push(
+    "Mapped: " + formatNumber(metadata.mapped_count) +
+    "/" + formatNumber(metadata.feature_count) + " ADM1"
+  );
+  status.textContent = statusParts.join(" · ");
+
+  setTimeout(() => map.invalidateSize(), 0);
+}
+
 function renderProvenance(build) {
   const items = [
     ["Build ID", build.build_id],
@@ -200,6 +322,17 @@ async function initializeDashboard() {
     }
 
     el("dashboard").classList.remove("hidden");
+
+    try {
+      const regionMap = await fetchJson("/api/map/regions");
+      renderRegionMap(regionMap);
+    } catch (mapError) {
+      console.error(mapError);
+      el("map-status").textContent =
+        "Карта недоступна: " + mapError.message +
+        ". Виконайте python -m src.ingestion.acquire_boundaries";
+      el("map-meta").textContent = "GeoJSON unavailable";
+    }
   } catch (error) {
     console.error(error);
     setStatus("Помилка API", "error");
