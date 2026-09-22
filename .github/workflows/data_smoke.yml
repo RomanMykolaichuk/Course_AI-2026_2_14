@@ -74,6 +74,11 @@ jobs:
             --db /tmp/airstrikes-real.db \
             --output-dir /tmp/ml-splits > /tmp/ml-split-summary.json
 
+      - name: Diagnose alternative historical targets
+        run: |
+          python -m src.features.target_diagnostics \
+            --db /tmp/airstrikes-real.db > /tmp/ml-target-diagnostics.json
+
       - name: Evaluate ML quality gate
         run: |
           python -m src.features.quality_gate \
