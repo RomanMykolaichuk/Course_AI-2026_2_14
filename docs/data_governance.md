@@ -32,7 +32,7 @@ Interim data may still retain source-specific semantics.
 
 ### `data/processed/`
 
-Canonical analytical datasets used by notebooks, PostgreSQL loading, API endpoints, and ML experiments.
+Canonical analytical datasets produced by code and suitable for SQLite loading, notebooks, API endpoints and ML experiments.
 
 Only code-generated outputs belong here.
 
@@ -48,6 +48,17 @@ Examples:
 - curated region dictionaries.
 
 Large ERA5 extracts should normally be stored outside Git and regenerated/downloaded from documented scripts.
+
+### `data/airstrikes.db`
+
+Generated local SQLite database used by the application.
+
+Rules:
+
+- never treat the database file as the primary source of truth;
+- do not commit it to Git;
+- rebuild it from source snapshots and transformation code;
+- record every significant build in `dataset_builds`.
 
 ## 2. Snapshot naming
 
@@ -108,22 +119,24 @@ Canonical records should retain, at minimum:
 
 Derived ML tables should also record a dataset build/version identifier.
 
-## 5. Dataset versioning
+## 5. Dataset and database versioning
 
 A model result is not reproducible unless the exact input dataset can be identified.
 
-Each processed dataset build should therefore have:
+Each processed/database build should therefore have:
 
+- build identifier;
 - build timestamp;
 - code commit SHA;
 - input snapshot checksums;
 - transformation version;
 - row counts;
-- feature schema version.
+- feature schema version where applicable.
 
-A simple first implementation can write these values to:
+The first implementation records these values in two places:
 
-`data/processed/manifest.json`
+1. `data/processed/manifest.json` for file-based processed builds;
+2. SQLite table `dataset_builds` for database load/build provenance.
 
 ## 6. License and redistribution rules
 
@@ -143,16 +156,21 @@ Specific current notes:
 - ACLED: follow ACLED EULA/content-usage terms; do not publish raw licensed content from this repository unless explicitly permitted;
 - Meteostat: preserve provider-specific license metadata.
 
-## 7. Credentials
+## 7. Credentials and local configuration
 
 API keys/tokens must never be committed.
 
 Use `.env` locally and keep only variable names/examples in `.env.example`.
 
-Examples:
+SQLite does not require database credentials. The runtime database path is configured through:
+
+```text
+DATABASE_PATH=data/airstrikes.db
+```
+
+Other examples of secrets that may appear later:
 
 - alert API tokens;
-- database credentials;
 - future Kaggle/API credentials.
 
 ## 8. Data quality checks
@@ -167,6 +185,8 @@ At minimum, every processed build should test:
 - duplicate source records are identified;
 - region mappings use only the canonical region table;
 - source rows with ambiguous target geography remain flagged rather than force-mapped;
+- SQLite foreign keys are enabled;
+- SQLite `PRAGMA integrity_check` returns `ok`;
 - no future information is introduced into ML features.
 
 ## 9. Research/operational boundary
@@ -187,6 +207,7 @@ The initial ML output should remain aggregated by region and time bucket and sho
 - [ ] Exact source snapshots are identified.
 - [ ] Licenses/terms are documented.
 - [ ] Canonical mapping is reproducible.
+- [ ] SQLite build/provenance record exists.
 - [ ] Ambiguous geography is flagged.
 - [ ] Train/validation/test split is chronological where appropriate.
 - [ ] Feature calculation uses only past information.
