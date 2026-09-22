@@ -17,6 +17,7 @@ from src.features.national_daily import (
 )
 from src.features.split import chronological_split, split_summary
 from src.features.quality_gate import build_ml_quality_gate
+from src.features.target_diagnostics import diagnose_national_targets
 
 
 class NationalDailyFeatureTests(unittest.TestCase):
@@ -167,6 +168,86 @@ class ChronologicalSplitTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "one row per date"):
             chronological_split(frame)
+
+
+class TargetDiagnosticsTests(unittest.TestCase):
+    def test_count_target_and_train_derived_binary_thresholds_are_diagnosed(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        try:
+            db = Path(temp.name) / "targets.db"
+            initialize_database(db)
+            seed_regions(db)
+
+            rows = []
+            dates = pd.date_range("2026-01-01", periods=60, freq="D")
+            for day_index, date in enumerate(dates):
+                count = 1 + (day_index % 4)
+                for event_index in range(count):
+                    rows.append(
+                        (
+                            f"d{day_index}-e{event_index}",
+                            date.strftime("%Y-%m-%d"),
+                            "Model",
+                            "UAV",
+                            count,
+                            "test",
+                            "snapshot",
+                        )
+                    )
+
+            with connect(db) as connection:
+                connection.executemany(
+                    """
+                    INSERT INTO attack_events (
+                        event_id, time_start, weapon_model, weapon_category,
+                        launched, source_name, source_snapshot
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    rows,
+                )
+                connection.execute(
+                    """
+                    INSERT INTO dataset_builds (
+                        build_id, source_name, source_snapshot,
+                        transformation_version, rows_loaded
+                    )
+                    VALUES (
+                        'target-build', 'test', 'snapshot', 'test-v1', ?
+                    );
+                    """,
+                    (len(rows),),
+                )
+                connection.commit()
+
+            result = diagnose_national_targets(db)
+
+            self.assertEqual(
+                result["source_event_count_regression"]["status"],
+                "evaluable_retrospectively",
+            )
+            self.assertGreater(
+                result["source_event_count_regression"]["partitions"]["test"][
+                    "unique_values"
+                ],
+                2,
+            )
+            self.assertEqual(
+                result["binary_high_activity_candidates"]["train_q75"]["status"],
+                "evaluable_retrospectively",
+            )
+            self.assertTrue(
+                result["binary_high_activity_candidates"]["train_q75"]["balance"][
+                    "validation"
+                ]["contains_both_classes"]
+            )
+            self.assertTrue(
+                result["binary_high_activity_candidates"]["train_q75"]["balance"][
+                    "test"
+                ]["contains_both_classes"]
+            )
+        finally:
+            temp.cleanup()
 
 
 class MlQualityGateTests(unittest.TestCase):
