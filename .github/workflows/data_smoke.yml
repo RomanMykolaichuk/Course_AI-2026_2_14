@@ -20,6 +20,7 @@ on:
       - "src/features/quality_gate.py"
       - "src/features/split.py"
       - "src/features/target_diagnostics.py"
+      - "src/models/historical_count_backtest.py"
       - "sql/schema.sql"
   workflow_dispatch:
 
@@ -44,7 +45,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install minimal pipeline dependencies
-        run: pip install pandas python-dotenv "kagglehub>=1.0,<2"
+        run: pip install pandas scikit-learn python-dotenv "kagglehub>=1.0,<2"
 
       - name: Acquire current public dataset
         run: python -m src.ingestion.acquire_primary --snapshot-date ci --force
@@ -92,6 +93,7 @@ jobs:
           cat /tmp/ml-split-summary.json
           cat /tmp/ml-target-diagnostics.json
           cat /tmp/ml-quality-gate.json
+          cat /tmp/ml-backtest.json
 
       - name: Upload summaries only
         uses: actions/upload-artifact@v4
@@ -104,4 +106,5 @@ jobs:
             /tmp/ml-split-summary.json
             /tmp/ml-target-diagnostics.json
             /tmp/ml-quality-gate.json
+            /tmp/ml-backtest.json
           retention-days: 7
