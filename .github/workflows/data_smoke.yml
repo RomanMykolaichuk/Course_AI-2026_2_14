@@ -34,21 +34,6 @@ jobs:
       - name: Acquire current public dataset
         run: python -m src.ingestion.acquire_primary --snapshot-date ci --force
 
-      - name: Inspect affected_region representation
-        run: |
-          python - <<'PY'
-          import pandas as pd
-          path = "data/raw/piterfm_massive_missile_attacks/ci/missile_attacks_daily.csv"
-          df = pd.read_csv(path)
-          values = df["affected_region"].dropna().astype(str)
-          values = values[values.str.strip().ne("")]
-          print("affected_region_nonempty:", len(values))
-          print("affected_region_unique:", values.nunique())
-          print("affected_region_examples:")
-          for value in values.drop_duplicates().head(20):
-              print(repr(value))
-          PY
-
       - name: Build SQLite from current snapshot
         run: |
           python -m src.db.load_primary             --snapshot-dir data/raw/piterfm_massive_missile_attacks/ci             --db /tmp/airstrikes-real.db > /tmp/primary-build-summary.json
