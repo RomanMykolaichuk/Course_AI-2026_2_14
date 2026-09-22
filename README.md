@@ -328,19 +328,27 @@ python -m src.db.check_db
 - [x] explicit no-evidence styling instead of treating missing geography as zero;
 - [x] real geoBoundaries smoke test та synthetic map-data tests.
 
-### Sprint 6 — ML dataset
-- часові ознаки;
-- rolling statistics;
-- лагові ознаки;
-- регіональні агрегати;
-- leakage-safe feature table.
+### Sprint 6 — ML dataset + quality gate
+- [x] complete national daily calendar;
+- [x] label `source_event_present` з обережною source-level семантикою;
+- [x] calendar features;
+- [x] lag-1 / lag-7 historical activity;
+- [x] prior-only rolling 7/30-day statistics;
+- [x] days-since-previous-source-event;
+- [x] explicit predictor allow-list;
+- [x] current-day outcome/count columns виключені з ML predictors;
+- [x] chronological train/validation/test split без shuffle;
+- [x] leakage/unit tests;
+- [x] real-data feature/split smoke;
+- [x] ML quality gate для national та oblast-level задач.
 
-### Sprint 7 — ML models
-- DummyClassifier;
-- Logistic Regression;
-- Random Forest;
-- chronological validation;
-- метрики та explainability.
+### Sprint 7 — Offline historical ML backtest
+- [ ] не запускати binary daily classifier, поки evaluation split не містить обидва класи;
+- [ ] не навчати oblast-level classifier на поточній medium-confidence розмітці;
+- [ ] обрати альтернативну агреговану retrospective target formulation;
+- [ ] додати simple baseline;
+- [ ] використовувати chronological backtesting;
+- [ ] зберігати лише historical evaluation metrics, без live/current forecast endpoint.
 
 ### Sprint 8 — ML in dashboard
 - API endpoint для експериментального агрегованого результату;
@@ -434,13 +442,51 @@ geometry variant        simplified GeoJSON
 
 Карта не перетворює відсутню регіональну розмітку на нуль. Для регіонів без `attack_event_regions` UI показує стан **no region evidence**.
 
-## 15. Наступний крок
+## 15. ML feature baseline — 2026-09-22
 
-**Sprint 6 — ML dataset**, але з окремим quality gate:
+Побудовано national daily feature dataset для **historical backtesting only**:
 
-1. побудувати daily / region×day feature table тільки з історичних даних;
-2. створити time-based split і leakage tests;
-3. окремо оцінити national-level / weapon-activity baseline, який не потребує повної oblast label coverage;
-4. oblast-level target будувати лише на підмножині з documented region evidence;
-5. порівняти coverage та class balance перед навчанням;
-6. не трактувати 23.97% region-link coverage як випадкову або повну вибірку без додаткового обґрунтування.
+```text
+calendar rows                 1452
+period                        2022-09-28 — 2026-09-18
+positive source days          1218
+negative source days           234
+overall positive rate        83.8843%
+model-ready start             2022-10-05
+```
+
+Фінальний ML CSV не містить target-day `event_count`, `launched`, `destroyed` або інших outcome-полів. Дозволені predictors — календарні та lag/rolling features, сформовані лише з попередніх дат.
+
+Chronological split без shuffle:
+
+```text
+train       2022-10-05 — 2025-07-11   1011 rows   positive 77.3492%
+validation  2025-07-12 — 2026-02-12    216 rows   positive 100.0000%
+test        2026-02-13 — 2026-09-18    218 rows   positive 99.0826%
+```
+
+Цей split виявив суттєву зміну source-label distribution. Validation не містить жодного negative day, тому стандартне binary classification evaluation є методологічно некоректним для поточної постановки.
+
+Quality gate:
+
+```text
+national feature generation       ALLOWED
+national binary classification    BLOCKED_SINGLE_CLASS_EVALUATION
+oblast-level training             BLOCKED_MEDIUM_CONFIDENCE_ONLY
+region-link coverage              23.97%
+high-confidence region events     0
+medium-confidence region events   994
+```
+
+## 16. Наступний крок
+
+**Sprint 7 — Offline historical ML backtest** починається не з навчання Logistic Regression/Random Forest, а з переоцінки target formulation.
+
+Допустимий напрям для наступного етапу:
+
+1. залишити поточний binary classifier заблокованим;
+2. дослідити агреговану national-level historical activity target, яка має достатню варіативність у всіх chronological partitions;
+3. перевірити distribution shift до training;
+4. порівнювати model лише з простим naive/dummy baseline;
+5. зберігати лише retrospective evaluation artifacts;
+6. не створювати live/current endpoint для прогнозу майбутніх ударів, цілей, маршрутів або конкретних регіонів.
