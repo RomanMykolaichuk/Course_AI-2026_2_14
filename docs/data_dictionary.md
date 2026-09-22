@@ -173,7 +173,7 @@ Do not use as predictors:
 | model reference category | `weapon_category` | join from `missiles_and_uavs.csv` |
 | `launch_place` | `launch_place` | preserve source text |
 | `target` | `target_raw` | preserve exactly/semantically; explicit oblast mentions may create medium-confidence `target` relations |
-| `affected_region` | `attack_event_regions` | explicit administrative-region mentions create high-confidence `affected` relations |
+| `affected_region` (optional) | `attack_event_regions` | when present, explicit administrative-region mentions create high-confidence `affected` relations; the 2026-09-22 acquired CSV does not contain this column |
 | `carrier` | `carrier` | preserve/normalize |
 | `launched` | `launched` | integer/null; never replace null with zero |
 | `destroyed` | `destroyed` | integer/null |
