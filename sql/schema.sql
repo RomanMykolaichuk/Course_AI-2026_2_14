@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS attack_events (
     source_url TEXT,
     source_record_id TEXT,
     source_snapshot TEXT NOT NULL,
-    ingested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ingested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     CHECK (time_end IS NULL OR time_end >= time_start)
 );
 
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS dataset_builds (
     source_sha256 TEXT,
     code_commit_sha TEXT,
     transformation_version TEXT,
-    built_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    built_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     rows_loaded INTEGER CHECK (rows_loaded IS NULL OR rows_loaded >= 0),
     notes TEXT
 );
