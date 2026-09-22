@@ -1,0 +1,74 @@
+name: GIS Smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/gis_smoke.yml"
+      - "src/ingestion/acquire_boundaries.py"
+      - "src/preprocessing/boundaries.py"
+      - "src/preprocessing/regions.py"
+      - "src/db/map_data.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gis-smoke-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-adm1:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal dependencies
+        run: pip install requests python-dotenv
+
+      - name: Acquire current UKR ADM1 geometry
+        run: python -m src.ingestion.acquire_boundaries --output-root /tmp/geoboundaries --force
+
+      - name: Validate canonical mapping
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from src.preprocessing.boundaries import canonicalize_boundaries, load_boundary_snapshot
+          from src.preprocessing.regions import REGIONS
+
+          snapshots = list(Path("/tmp/geoboundaries").glob("UKR-ADM1-*"))
+          if len(snapshots) != 1:
+              raise SystemExit(f"Expected one snapshot, found {len(snapshots)}")
+
+          geometry, metadata = load_boundary_snapshot(snapshots[0])
+          canonical, report = canonicalize_boundaries(geometry)
+
+          summary = {
+              "boundaryID": metadata.get("boundaryID"),
+              "boundaryYearRepresented": metadata.get("boundaryYearRepresented"),
+              "boundaryLicense": metadata.get("boundaryLicense"),
+              "feature_count": report["feature_count"],
+              "mapped_count": report["mapped_count"],
+              "canonical_region_count": len(REGIONS),
+              "unmapped_names": report["unmapped_names"],
+              "duplicate_region_codes": report["duplicate_region_codes"],
+          }
+          print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+          if report["feature_count"] != len(REGIONS):
+              raise SystemExit("ADM1 feature count differs from canonical region count.")
+          if report["mapped_count"] != report["feature_count"]:
+              raise SystemExit("Not every ADM1 feature mapped to a canonical region.")
+          if report["duplicate_region_codes"]:
+              raise SystemExit("Duplicate canonical region mappings detected.")
+          PY
