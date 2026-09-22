@@ -124,32 +124,57 @@ Database provenance table.
 | rows_loaded | INTEGER | no | Number of rows loaded |
 | notes | TEXT | no | Build notes |
 
+### 7. model_evaluations
+
+Retrospective ML evaluation registry. It stores metrics/provenance, not fitted models.
+
+| Field | SQLite type | Required | Description |
+|---|---|---:|---|
+| evaluation_id | TEXT | yes | Deterministic evaluation identifier |
+| source_build_id | TEXT | no | FK to the source dataset build |
+| task | TEXT | yes | Historical evaluation task |
+| target_name | TEXT | yes | Target used by the experiment |
+| evaluated_at | TEXT | yes | UTC evaluation timestamp |
+| deployment_status | TEXT | yes | Quality/deployment gate result |
+| comparison_json | TEXT | yes | Compact model-comparison metadata |
+| validation_json | TEXT | yes | Validation metrics |
+| test_json | TEXT | yes | Test metrics |
+| notes | TEXT | no | Target semantics, policies and gate explanation |
+
+The table intentionally contains no model blob, pickle path or future prediction output.
+
 ## ML feature table
 
 The model should train from a derived table produced from the canonical entities, not directly from raw CSV.
 
-Suggested grain for the first experiment:
+Current retrospective grain:
 
-`region_code × time_bucket`
+\`country × calendar_day\`
 
-Example derived fields:
+The initial oblast-level label formulation is blocked by the regional-data quality gate.
+
+Exported national daily fields:
 
 | Field | Meaning |
 |---|---|
-| bucket_start | Start of the prediction interval |
-| region_code | Canonical oblast |
-| event_present | Target label: whether a normalized historical event is associated with the region/time bucket |
-| event_count_prev_24h | Number of events in previous 24 h |
-| event_count_prev_7d | Number of events in previous 7 d |
-| rolling_mean_7d | Historical rolling mean |
-| rolling_mean_30d | Historical rolling mean |
-| days_since_previous_event | Time since previous event |
-| uav_activity_prev_7d | Historical UAV activity |
-| missile_activity_prev_7d | Historical missile activity |
-| alert_duration_prev_24h | Optional alert-history feature |
-| weather_* | Optional lagged/aggregated weather features |
+| date | Historical calendar date |
+| source_event_present | Source-record presence label used only for diagnostics |
 | day_of_week | Calendar feature |
 | month | Calendar feature |
+| day_of_year | Calendar feature |
+| is_weekend | Calendar feature |
+| event_count_lag1 | Previous-day canonical source-event count |
+| event_count_lag7 | Canonical source-event count seven days earlier |
+| launched_known_lag1 | Previous-day sum of known launched counts |
+| uav_event_count_lag1 | Previous-day UAV source-event count |
+| missile_event_count_lag1 | Previous-day missile source-event count |
+| event_count_roll7_prior | Mean source-event count over prior 7 days |
+| event_count_roll30_prior | Mean source-event count over prior 30 days |
+| launched_roll7_prior | Prior 7-day rolling known-launch mean |
+| days_since_previous_source_event | Historical recency feature |
+| history_days_available | Number of historical days available before the row |
+
+Current-day \`event_count\`, \`launched_known_total\`, \`destroyed_known_total\` and category counts are not exported as model predictors.
 
 ## Leakage rules
 
