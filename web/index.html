@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Навчальна панель ретроспективної аналітики історичних відкритих даних про повітряні атаки.">
   <title>Ukraine Air Strike Analytics</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/css/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="/js/app.js" defer></script>
 </head>
 <body>
@@ -84,6 +86,22 @@
         <div class="chart-box chart-box-wide">
           <canvas id="daily-chart"></canvas>
         </div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Regional evidence map</p>
+            <h2>Агрегована історична карта</h2>
+          </div>
+          <span id="map-meta" class="panel-note">GeoJSON не завантажено</span>
+        </div>
+        <p class="caveat map-caveat">
+          Колір відображає лише кількість canonical events з доступною регіональною прив’язкою.
+          Сірий регіон означає відсутність region evidence у поточному dataset, а не відсутність атак.
+        </p>
+        <div id="region-map" class="region-map" aria-label="Карта регіональної історичної аналітики"></div>
+        <div id="map-status" class="map-status"></div>
       </section>
 
       <div class="two-column">
