@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.db.check_db import check_database
-from src.db.connection import get_db_path
+from src.db.connection import PROJECT_ROOT, get_db_path
 from src.db.load_boundaries import load_boundary_reference
 from src.db.load_primary import load_primary_snapshot
 from src.ingestion.acquire_boundaries import acquire_adm1
@@ -27,10 +27,27 @@ def build_demo(
     evaluation metrics. It does not start the web server and does not expose a
     live prediction surface.
     """
-    primary_snapshot = acquire_snapshot(
-        from_dir=primary_from_dir,
-        force=force_downloads,
-    )
+    try:
+        primary_snapshot = acquire_snapshot(
+            from_dir=primary_from_dir,
+            force=force_downloads,
+        )
+    except FileExistsError:
+        if force_downloads:
+            raise
+
+        snapshot_root = (
+            PROJECT_ROOT
+            / "data"
+            / "raw"
+            / "piterfm_massive_missile_attacks"
+        )
+        existing = sorted(
+            path for path in snapshot_root.glob("*") if path.is_dir()
+        )
+        if not existing:
+            raise
+        primary_snapshot = existing[-1]
 
     primary = load_primary_snapshot(
         snapshot_dir=primary_snapshot,
