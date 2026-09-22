@@ -13,8 +13,25 @@ __pycache__/
 # Local data and generated artifacts
 data/raw/*
 !data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+
+# Large external/reference data; small lookup tables may be committed
+data/external/**/*.geojson
+data/external/**/*.shp
+data/external/**/*.dbf
+data/external/**/*.shx
+data/external/**/*.prj
+data/external/**/*.gpkg
+data/external/**/*.nc
+data/external/**/*.grib
+data/external/**/*.grib2
+data/external/**/*.zip
+data/external/**/*.gz
+!data/external/.gitkeep
+
 models/*
 !models/.gitkeep
 
