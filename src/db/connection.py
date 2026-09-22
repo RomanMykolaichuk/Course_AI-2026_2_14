@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Union
+from typing import Iterator, Union
 
 from dotenv import load_dotenv
 
@@ -26,8 +27,9 @@ def get_db_path(db_path: PathLike | None = None) -> Path:
     return path.resolve()
 
 
-def connect(db_path: PathLike | None = None) -> sqlite3.Connection:
-    """Open a configured SQLite connection with project defaults."""
+@contextmanager
+def connect(db_path: PathLike | None = None) -> Iterator[sqlite3.Connection]:
+    """Open and always close a configured SQLite connection."""
     path = get_db_path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -35,4 +37,8 @@ def connect(db_path: PathLike | None = None) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON;")
     connection.execute("PRAGMA busy_timeout = 5000;")
-    return connection
+
+    try:
+        yield connection
+    finally:
+        connection.close()
