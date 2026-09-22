@@ -7,3 +7,4 @@ fastapi
 uvicorn[standard]
 python-dotenv
 requests
+kagglehub>=1.0,<2
