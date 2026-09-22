@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -20,7 +21,6 @@ COUNT_FIELDS = (
     "launched",
     "destroyed",
     "not_reach_goal",
-    "border_crossing",
     "still_attacking",
 )
 
@@ -52,6 +52,61 @@ def _optional_int(value: object, field: str, row_number: int) -> int | None:
             f"Row {row_number}: {field} must be a non-negative integer or null; got {value!r}"
         )
     return int(number)
+
+
+def _border_crossing(value: object, row_number: int) -> tuple[int | None, str | None]:
+    """Return a derived total plus the original structured source value."""
+    if value is None or pd.isna(value):
+        return None, None
+
+    text = str(value).strip()
+    if text.lower() in {"", "nan", "none", "null"}:
+        return None, None
+    if text in {"{}", "[]"}:
+        return None, text
+
+    try:
+        number = float(text)
+    except (TypeError, ValueError):
+        number = None
+
+    if number is not None:
+        if not number.is_integer() or number < 0:
+            raise ValueError(
+                f"Row {row_number}: border_crossing numeric value must be "
+                f"a non-negative integer; got {value!r}"
+            )
+        return int(number), text
+
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return None, text
+
+    if not isinstance(parsed, dict):
+        return None, text
+
+    total = 0
+    has_numeric_value = False
+    for destination, raw_count in parsed.items():
+        if raw_count is None:
+            continue
+        try:
+            count = float(raw_count)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Row {row_number}: border_crossing[{destination!r}] "
+                f"must be numeric; got {raw_count!r}"
+            ) from exc
+        if not count.is_integer() or count < 0:
+            raise ValueError(
+                f"Row {row_number}: border_crossing[{destination!r}] must be "
+                f"a non-negative integer; got {raw_count!r}"
+            )
+        total += int(count)
+        has_numeric_value = True
+
+    return (total if has_numeric_value else None), text
 
 
 def _normalize_time(value: object, row_number: int, field: str) -> str | None:
@@ -161,6 +216,10 @@ def transform_primary_dataset(
             field: _optional_int(row.get(field), field, row_number)
             for field in COUNT_FIELDS
         }
+        border_crossing, border_crossing_raw = _border_crossing(
+            row.get("border_crossing"),
+            row_number,
+        )
 
         event_rows.append(
             {
@@ -173,6 +232,8 @@ def transform_primary_dataset(
                 "target_raw": target_raw,
                 "carrier": carrier,
                 **counts,
+                "border_crossing": border_crossing,
+                "border_crossing_raw": border_crossing_raw,
                 "source_name": SOURCE_NAME,
                 "source_url": _first_url(row.get("source")) or SOURCE_PAGE,
                 "source_record_id": source_record_id,
