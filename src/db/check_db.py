@@ -13,6 +13,7 @@ EXPECTED_TABLES = {
     "alert_intervals",
     "weather_observations",
     "dataset_builds",
+    "model_evaluations",
 }
 
 
