@@ -33,9 +33,20 @@ def _optional_text(value: object) -> str | None:
 
 
 def _optional_int(value: object, field: str, row_number: int) -> int | None:
-    if value is None or pd.isna(value) or str(value).strip() == "":
+    if value is None or pd.isna(value):
         return None
-    number = float(value)
+
+    text = str(value).strip()
+    if text.lower() in {"", "{}", "[]", "nan", "none", "null"}:
+        return None
+
+    try:
+        number = float(text)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Row {row_number}: {field} must be a non-negative integer or null; got {value!r}"
+        ) from exc
+
     if not number.is_integer() or number < 0:
         raise ValueError(
             f"Row {row_number}: {field} must be a non-negative integer or null; got {value!r}"
