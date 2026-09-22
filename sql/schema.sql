@@ -27,8 +27,7 @@ CREATE TABLE IF NOT EXISTS attack_events (
     source_url TEXT,
     source_record_id TEXT,
     source_snapshot TEXT NOT NULL,
-    ingested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    CHECK (time_end IS NULL OR time_end >= time_start)
+    ingested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS attack_event_regions (
