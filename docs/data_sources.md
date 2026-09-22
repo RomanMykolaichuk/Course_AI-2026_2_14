@@ -147,16 +147,24 @@ Meteostat is easier to prototype with than ERA5.
 
 **API:** https://www.geoboundaries.org/api.html  
 **Recommended product:** `gbOpen`  
-**License:** CC BY 4.0.
+**Current UKR ADM1 boundary ID:** `UKR-ADM1-14850775`  
+**Boundary year represented:** 2017  
+**Build date reported by API:** Dec 12, 2023  
+**Layer license reported by API:** Open Data Commons Open Database License 1.0 (ODbL 1.0).
 
-**Decision:** use ADM1 boundaries as the canonical map layer for oblast-level dashboard aggregation unless a later project requirement selects another authoritative boundary source.
+The general geoBoundaries API documentation describes `gbOpen` as the preferred open product, but the project records the license returned by the **specific acquired layer metadata** rather than assuming one license for every layer.
 
-Record:
+**Decision:** use the current UKR ADM1 layer as the canonical map geometry for retrospective dashboard aggregation. The 27 ADM1 features map 1:1 to the project's 27 canonical regions using `shapeISO` as the primary key and source name only as a fallback.
 
-- geoBoundaries release;
+Record for every acquisition:
+
+- `boundaryID`;
 - boundary year represented;
-- download date;
-- SHA-256 checksum of the downloaded file.
+- source/build date;
+- acquisition timestamp;
+- exact layer license and license source;
+- geometry variant;
+- SHA-256 checksum of the downloaded GeoJSON.
 
 ## Source acceptance checklist
 
