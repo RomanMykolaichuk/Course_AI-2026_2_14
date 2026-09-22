@@ -2,132 +2,97 @@
 
 ## Goal
 
-Create a reproducible educational analytics pipeline that separates data acquisition, transformation, local relational storage, analytics, machine learning, API delivery, and visualization.
+Create a reproducible educational analytics pipeline for retrospective analysis of historical/open air-strike data.
+
+The production path of the demo is:
+
+\`\`\`text
+sources → snapshots → canonical SQLite → analytics → API → dashboard
+                                      ↘ historical ML evaluation
+\`\`\`
+
+The project intentionally does not expose a live/current strike-prediction API.
 
 ## Logical layers
 
-1. **Data sources** — public historical/open data.
-2. **Ingestion** — source-specific download/parsing code.
-3. **Raw zone** — immutable source snapshots.
-4. **Interim zone** — source-specific parsing, cleaning and normalization.
-5. **Canonical processed zone** — common relational analytical model.
-6. **Reference/external zone** — boundaries and other supporting datasets.
-7. **Storage** — SQLite local relational database.
-8. **Analytics** — descriptive and diagnostic analysis.
-9. **ML** — baseline and interpretable prediction experiments.
-10. **FastAPI** — analytical endpoints.
-11. **Web dashboard** — Leaflet map + Chart.js visualizations.
-
-## Why SQLite for the course
-
-SQLite keeps the runtime simple and portable:
-
-- no separate database server;
-- no database users, ports or service configuration;
-- Python includes the `sqlite3` driver in the standard library;
-- the whole relational store is one local file;
-- SQL remains explicit and visible to learners;
-- the database can later be migrated to PostgreSQL if scale or concurrency requirements change.
-
-The generated database is stored locally as:
-
-```text
-data/airstrikes.db
-```
-
-and is excluded from Git. It must always be reproducible from documented source snapshots and transformation code.
-
-## Design rules
-
-### 1. Dashboard isolation
-
-The dashboard must not depend directly on raw source formats. Every source must first be normalized into the canonical data model.
-
-### 2. Source isolation
-
-Source-specific assumptions belong in `src/ingestion/` and `src/preprocessing/`, not in API or dashboard code.
-
-### 3. Canonical geography
-
-An attack observation can relate to zero, one or many oblasts. Region attribution is stored separately from the attack event rather than forcing one `region` value into each record.
-
-### 4. Reproducibility
-
-Every processed dataset/database build must be traceable to:
-
-- raw snapshot(s);
-- source/version;
-- checksum;
-- code commit;
-- transformation rules;
-- processed build manifest / `dataset_builds` record.
-
-### 5. Database isolation
-
-All Python code should obtain SQLite connections through `src/db/connection.py`. Notebooks, API code, ingestion code and ML code should not independently hard-code database paths.
-
-### 6. ML isolation
-
-Machine-learning features are derived from canonical historical tables. Models must not train directly from mutable API responses or current dashboard state.
+1. **Public/open data sources**
+2. **Acquisition and immutable snapshots**
+3. **Source-specific parsing**
+4. **Canonical transformation**
+5. **SQLite relational storage**
+6. **SQL analytics**
+7. **GIS enrichment**
+8. **Leakage-safe feature engineering**
+9. **Offline historical backtesting**
+10. **Retrospective evaluation registry**
+11. **FastAPI**
+12. **HTML/JS dashboard**
 
 ## Data flow
 
-```text
-                            ┌──────────────────────────┐
-                            │ Public/open data sources │
-                            └─────────────┬────────────┘
-                                          │
-                                          ▼
-                                  src/ingestion/
-                                          │
-                                          ▼
-                                      data/raw/
-                                          │
-                                          ▼
-                               src/preprocessing/
-                                          │
-                                          ▼
-                                   data/interim/
-                                          │
-                     ┌────────────────────┴────────────────────┐
-                     │                                         │
-                     ▼                                         ▼
-             canonical transformation                  data/external/
-                     │                              boundaries/lookups
-                     └────────────────────┬────────────────────┘
-                                          ▼
-                                  data/processed/
-                                          │
-                                          ▼
-                               SQLite: data/airstrikes.db
-                                   ┌──────┴──────┐
-                                   ▼             ▼
-                              analytics         ML
-                                   └──────┬──────┘
-                                          ▼
-                                       FastAPI
-                                          ▼
-                                  REST/JSON endpoints
-                                          ▼
-                               HTML + CSS + JavaScript
-                                          ▼
-                               Leaflet + Chart.js
-```
+\`\`\`text
+Primary historical source
+        ↓
+src/ingestion/acquire_primary.py
+        ↓
+data/raw/
+        ↓
+src/preprocessing/primary_dataset.py
+        ↓
+canonical CSV
+        ↓
+SQLite: data/airstrikes.db
+        │
+        ├────────────→ SQL analytics ──────→ FastAPI ──────→ dashboard
+        │
+        ├────────────→ feature engineering
+        │                    ↓
+        │           chronological split
+        │                    ↓
+        │           offline historical backtest
+        │                    ↓
+        │             model_evaluations
+        │                    ↓
+        └────────────────→ read-only API ──→ ML metrics panel
 
-## SQLite storage conventions
+geoBoundaries metadata/GeoJSON
+        ↓
+data/external/
+        ↓
+canonical ADM1 mapping
+        ↓
+region GeoJSON endpoint
+        ↓
+Leaflet map
+\`\`\`
 
-- enable `PRAGMA foreign_keys = ON` for every connection;
-- store canonical timestamps as ISO 8601 text, normalized to UTC by ETL code;
-- use `REAL` for floating-point measurements;
-- use `INTEGER` for counts and booleans where applicable;
-- do not store large raw source files or GIS binaries inside SQLite;
-- treat `data/airstrikes.db` as generated runtime state, not as a source artifact.
+## SQLite-first runtime
 
-## Canonical storage model
+SQLite is used because the course/demo should run locally without a database server.
 
-Core relational entities:
+Generated database:
 
-```text
+\`\`\`text
+data/airstrikes.db
+\`\`\`
+
+The DB is a generated artifact and is excluded from Git. It must remain reproducible from source snapshots and code.
+
+All Python code obtains connections through:
+
+\`\`\`text
+src/db/connection.py
+\`\`\`
+
+Each connection enables:
+
+\`\`\`sql
+PRAGMA foreign_keys = ON;
+\`\`\`
+
+## Core relational model
+
+\`\`\`text
 attack_events
       │
       ├──< attack_event_regions >── regions
@@ -136,44 +101,113 @@ attack_events
       └── optional weather_observations
 
 dataset_builds
-      └── provenance/version records for database builds
-```
+      └── source/build provenance
 
-Why this matters: the primary attack dataset can contain broad, multi-region or nationwide target descriptions. A many-to-many event/region model avoids inventing false geographic precision.
+model_evaluations
+      └── retrospective metrics/provenance only
+\`\`\`
 
-See:
+### Why geography is separate
 
-- [Data Sources](data_sources.md)
-- [Data Dictionary](data_dictionary.md)
-- [Data Governance](data_governance.md)
+One source observation may mention one oblast, several oblasts, a broad direction, all of Ukraine, or no resolvable oblast. Region attribution is therefore modeled as a many-to-many relationship rather than forcing one region into each event.
 
-## Local runtime
+## GIS architecture
 
-Initialize the database:
+Versioned geoBoundaries UKR ADM1 geometry is stored outside SQLite as GeoJSON.
 
-```bash
-python -m src.db.init_db
-```
+The canonical mapping rule is:
 
-Verify it:
+1. use \`shapeISO\`;
+2. use normalized source name only as a fallback;
+3. fail the GIS smoke test when a feature is unmapped or duplicated.
 
-```bash
-python -m src.db.check_db
-```
+The API merges ADM1 geometry with canonical evidence-only region statistics. A region without canonical evidence is rendered as **no evidence**, not as zero events.
 
-The database path defaults to `data/airstrikes.db` and can be overridden with the `DATABASE_PATH` environment variable.
+## ML architecture
 
-## Initial implementation order
+Machine-learning features are derived from canonical historical tables, never directly from raw CSV, dashboard state, or mutable API responses.
 
-1. initialize and verify the SQLite schema;
-2. acquire a versioned snapshot of the primary Kaggle dataset;
-3. build source-specific parser;
-4. normalize weapon/model fields;
-5. preserve raw target text;
-6. extract/validate region relations into a separate link table;
-7. load canonical tables into SQLite;
-8. perform EDA and SQL analytics;
-9. expose one analytical endpoint through FastAPI;
-10. render the first Chart.js visualization;
-11. generate leakage-safe ML features;
-12. add baseline models and later enrichments.
+Target-day outcome/count columns are excluded from predictors. Activity predictors are lagged or rolling statistics computed strictly from dates before the target date.
+
+Splits are chronological and never shuffled:
+
+\`\`\`text
+train → validation → test
+\`\`\`
+
+Current quality gates block:
+
+- oblast-level training because current regional evidence is incomplete and medium-confidence only;
+- national binary daily classification because validation becomes single-class.
+
+The current allowed experiment uses \`source_event_count\` only for offline historical regression backtesting.
+
+## Evaluation registry
+
+\`model_evaluations\` stores:
+
+- source build;
+- task/target;
+- validation metrics;
+- test metrics;
+- comparison metadata;
+- deployment gate;
+- explanatory notes.
+
+It does **not** store a model binary/blob, pickle/joblib artifact, or future-date prediction output.
+
+The dashboard reads only these recorded retrospective metrics.
+
+## API boundary
+
+The API exposes health/database diagnostics, retrospective summaries, historical daily data, category/model summaries, evidence-only regional statistics, GeoJSON and the latest retrospective model evaluation.
+
+No public endpoint accepts a future date or region and returns a strike forecast.
+
+## Dashboard boundary
+
+The dashboard is descriptive/diagnostic:
+
+- KPI;
+- daily history;
+- weapon categories/models;
+- data-quality coverage;
+- evidence-only regional map;
+- provenance;
+- retrospective ML metrics;
+- deployment gate status.
+
+## Reproducibility
+
+A meaningful result must be traceable to source URL, source snapshot, acquisition time, SHA-256, code commit, transformation version, dataset build ID, and evaluation ID where ML metrics are involved.
+
+## One-command demo orchestration
+
+The complete local build is orchestrated by:
+
+\`\`\`bash
+python -m src.demo.build_demo
+\`\`\`
+
+This command acquires or reuses the primary snapshot, builds canonical SQLite, acquires/version-controls ADM1 geometry, records GIS provenance, runs/records retrospective evaluation metrics, and performs a final integrity check.
+
+It does not start Uvicorn automatically.
+
+Serve separately:
+
+\`\`\`bash
+uvicorn api.main:app --reload
+\`\`\`
+
+## Design rules summary
+
+1. Raw snapshots are immutable.
+2. Dashboard never reads raw source formats.
+3. SQLite is generated, not the source of truth.
+4. Missing geography is not converted into zero.
+5. Missing numeric source values are not converted into zero unless zero is explicit.
+6. Target-day outcomes are excluded from ML predictors.
+7. Chronological evaluation is mandatory.
+8. Failed quality gates block model deployment.
+9. Only retrospective metrics are exposed to the dashboard.
+10. No live operational forecasting surface is implemented.
