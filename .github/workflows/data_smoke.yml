@@ -24,8 +24,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install minimal pipeline dependencies
+        run: pip install pandas python-dotenv "kagglehub>=1.0,<2"
 
       - name: Acquire current public dataset
         run: python -m src.ingestion.acquire_primary --snapshot-date ci --force
