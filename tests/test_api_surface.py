@@ -19,6 +19,7 @@ class ApiSurfaceTests(unittest.TestCase):
             "/api/stats/regions",
             "/api/stats/attribution",
             "/api/map/regions",
+            "/api/ml/evaluation/latest",
             "",
         }
         self.assertTrue(expected.issubset(paths), paths)
