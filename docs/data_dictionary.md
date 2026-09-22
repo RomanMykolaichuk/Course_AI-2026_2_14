@@ -4,56 +4,73 @@ This document defines the canonical analytical model used by the project.
 
 The primary source is not a simple “one row = one strike location” dataset. A single row can describe an attack interval for one weapon model and can contain a broad or multi-region target description. For that reason, the canonical model is relational rather than forcing every source row into one oblast.
 
+## SQLite storage conventions
+
+The project uses SQLite as the local relational store.
+
+- timestamps are stored as ISO 8601 text;
+- ETL code normalizes timestamps to UTC before writing;
+- integer counts use SQLite `INTEGER`;
+- floating-point measurements use SQLite `REAL`;
+- missing values remain `NULL`;
+- every connection enables `PRAGMA foreign_keys = ON`.
+
+Example canonical timestamp:
+
+```text
+2026-09-22T07:30:00+00:00
+```
+
 ## Core entities
 
 ### 1. attack_events
 
 One row represents one normalized source observation for a specific attack interval and weapon model.
 
-| Field | Type | Required | Description |
+| Field | SQLite type | Required | Description |
 |---|---|---:|---|
-| event_id | text | yes | Stable internal identifier |
-| time_start | timestamptz | yes | Start of the reported attack interval |
-| time_end | timestamptz | no | End of the reported attack interval |
-| weapon_model | text | no | Normalized missile/UAV model |
-| weapon_category | text | no | Broad category such as UAV, cruise missile, ballistic missile |
-| launch_place | text | no | Source-provided launch location or area |
-| target_raw | text | no | Target description exactly/semantically preserved from the source |
-| carrier | text | no | Launch platform/carrier |
-| launched | integer | no | Number launched; null means unknown, not zero |
-| destroyed | integer | no | Number destroyed; null means unknown |
-| not_reach_goal | integer | no | Number reported as not reaching the target |
-| border_crossing | integer | no | Number reported as crossing out of Ukraine |
-| still_attacking | integer | no | Number still attacking at report time |
-| source_name | text | yes | Dataset/source identifier |
-| source_url | text | no | URL of original source record/page where available |
-| source_record_id | text | no | Stable source-side identifier when available |
-| source_snapshot | text | yes | Snapshot/version filename or acquisition ID |
-| ingested_at | timestamptz | yes | ETL ingestion timestamp |
+| event_id | TEXT | yes | Stable internal identifier |
+| time_start | TEXT | yes | ISO 8601 UTC start of the reported attack interval |
+| time_end | TEXT | no | ISO 8601 UTC end of the reported attack interval |
+| weapon_model | TEXT | no | Normalized missile/UAV model |
+| weapon_category | TEXT | no | Broad category such as UAV, cruise missile, ballistic missile |
+| launch_place | TEXT | no | Source-provided launch location or area |
+| target_raw | TEXT | no | Target description exactly/semantically preserved from the source |
+| carrier | TEXT | no | Launch platform/carrier |
+| launched | INTEGER | no | Number launched; null means unknown, not zero |
+| destroyed | INTEGER | no | Number destroyed; null means unknown |
+| not_reach_goal | INTEGER | no | Number reported as not reaching the target |
+| border_crossing | INTEGER | no | Number reported as crossing out of Ukraine |
+| still_attacking | INTEGER | no | Number still attacking at report time |
+| source_name | TEXT | yes | Dataset/source identifier |
+| source_url | TEXT | no | URL of original source record/page where available |
+| source_record_id | TEXT | no | Stable source-side identifier when available |
+| source_snapshot | TEXT | yes | Snapshot/version filename or acquisition ID |
+| ingested_at | TEXT | yes | SQLite-generated ingestion timestamp |
 
 ### 2. regions
 
 Canonical oblast/reference table.
 
-| Field | Type | Required | Description |
+| Field | SQLite type | Required | Description |
 |---|---|---:|---|
-| region_code | text | yes | Stable internal region code |
-| name_uk | text | yes | Ukrainian region name |
-| name_en | text | no | English region name |
-| boundary_source | text | no | GIS boundary source |
-| boundary_version | text | no | Release/version of boundary data |
+| region_code | TEXT | yes | Stable internal region code |
+| name_uk | TEXT | yes | Ukrainian region name |
+| name_en | TEXT | no | English region name |
+| boundary_source | TEXT | no | GIS boundary source |
+| boundary_version | TEXT | no | Release/version of boundary data |
 
 ### 3. attack_event_regions
 
 Many-to-many link between attack observations and regions.
 
-| Field | Type | Required | Description |
+| Field | SQLite type | Required | Description |
 |---|---|---:|---|
-| event_id | text | yes | FK to `attack_events` |
-| region_code | text | yes | FK to `regions` |
-| relation_type | text | yes | `target`, `destroyed_location`, `mentioned`, or another documented relation |
-| attribution_method | text | yes | `source_explicit`, `parsed`, `manual_review`, etc. |
-| attribution_quality | text | no | Optional quality flag such as `high`, `medium`, `low` |
+| event_id | TEXT | yes | FK to `attack_events` |
+| region_code | TEXT | yes | FK to `regions` |
+| relation_type | TEXT | yes | `target`, `destroyed_location`, `mentioned`, or another documented relation |
+| attribution_method | TEXT | yes | `source_explicit`, `parsed`, `manual_review`, etc. |
+| attribution_quality | TEXT | no | Optional quality flag such as `high`, `medium`, `low` |
 
 This table prevents a multi-oblast target string from being incorrectly collapsed into one region.
 
@@ -61,32 +78,48 @@ This table prevents a multi-oblast target string from being incorrectly collapse
 
 Optional historical alert layer.
 
-| Field | Type | Required | Description |
+| Field | SQLite type | Required | Description |
 |---|---|---:|---|
-| alert_id | text | yes | Stable alert identifier |
-| region_code | text | yes | Canonical region code |
-| alert_type | text | yes | Alert/threat type |
-| started_at | timestamptz | yes | Start time |
-| finished_at | timestamptz | no | End time |
-| source_name | text | yes | Alert source/API |
-| source_snapshot | text | yes | Snapshot/version |
+| alert_id | TEXT | yes | Stable alert identifier |
+| region_code | TEXT | yes | Canonical region code |
+| alert_type | TEXT | yes | Alert/threat type |
+| started_at | TEXT | yes | ISO 8601 UTC start time |
+| finished_at | TEXT | no | ISO 8601 UTC end time |
+| source_name | TEXT | yes | Alert source/API |
+| source_snapshot | TEXT | yes | Snapshot/version |
 
 ### 5. weather_observations
 
 Optional environmental enrichment table.
 
-| Field | Type | Required | Description |
+| Field | SQLite type | Required | Description |
 |---|---|---:|---|
-| observed_at | timestamptz | yes | Historical weather timestamp |
-| region_code | text | yes | Region to which the feature is aggregated |
-| temperature_c | double precision | no | Temperature |
-| wind_speed_ms | double precision | no | Wind speed |
-| wind_direction_deg | double precision | no | Wind direction |
-| precipitation_mm | double precision | no | Precipitation |
-| cloud_cover_pct | double precision | no | Cloud cover |
-| surface_pressure_hpa | double precision | no | Surface pressure |
-| source_name | text | yes | e.g. ERA5 |
-| aggregation_method | text | yes | Spatial aggregation rule |
+| observed_at | TEXT | yes | ISO 8601 UTC historical weather timestamp |
+| region_code | TEXT | yes | Region to which the feature is aggregated |
+| temperature_c | REAL | no | Temperature |
+| wind_speed_ms | REAL | no | Wind speed |
+| wind_direction_deg | REAL | no | Wind direction |
+| precipitation_mm | REAL | no | Precipitation |
+| cloud_cover_pct | REAL | no | Cloud cover |
+| surface_pressure_hpa | REAL | no | Surface pressure |
+| source_name | TEXT | yes | e.g. ERA5 |
+| aggregation_method | TEXT | yes | Spatial aggregation rule |
+
+### 6. dataset_builds
+
+Database provenance table.
+
+| Field | SQLite type | Required | Description |
+|---|---|---:|---|
+| build_id | TEXT | yes | Stable build identifier |
+| source_name | TEXT | yes | Source used for the build/load |
+| source_snapshot | TEXT | yes | Snapshot filename/version |
+| source_sha256 | TEXT | no | SHA-256 of source snapshot |
+| code_commit_sha | TEXT | no | Git commit used for the transformation |
+| transformation_version | TEXT | no | ETL/schema transformation version |
+| built_at | TEXT | yes | Build timestamp |
+| rows_loaded | INTEGER | no | Number of rows loaded |
+| notes | TEXT | no | Build notes |
 
 ## ML feature table
 
@@ -131,8 +164,8 @@ Do not use as predictors:
 
 | Source field | Canonical field | Rule |
 |---|---|---|
-| `time_start` | `time_start` | parse to timezone-aware timestamp |
-| `time_end` | `time_end` | parse when present |
+| `time_start` | `time_start` | parse, normalize to UTC, serialize as ISO 8601 text |
+| `time_end` | `time_end` | parse when present, normalize to UTC |
 | `model` | `weapon_model` | normalize via weapon reference table |
 | model reference category | `weapon_category` | join from `missiles_and_uavs.csv` |
 | `launch_place` | `launch_place` | preserve source text |
@@ -155,12 +188,13 @@ The exact implementation must be fixed before the first processed dataset is pub
 
 ## Timezone
 
-All stored timestamps should be timezone-aware.
+All canonical timestamps represent timezone-aware instants even though SQLite stores them as text.
 
-Recommended storage:
+Recommended handling:
 
-- PostgreSQL: `TIMESTAMPTZ`;
-- Python/pandas: UTC internally;
+- ingestion: parse the source timezone explicitly;
+- Python/pandas: convert to UTC internally;
+- SQLite: persist normalized ISO 8601 UTC strings;
 - dashboard: convert to `Europe/Kyiv` for presentation when appropriate.
 
 The source timezone assumption must be documented during ingestion rather than guessed downstream.
