@@ -6,8 +6,9 @@ on:
       - main
     paths:
       - ".github/workflows/data_smoke.yml"
-      - "src/ingestion/**"
-      - "src/preprocessing/**"
+      - "src/ingestion/acquire_primary.py"
+      - "src/preprocessing/primary_dataset.py"
+      - "src/preprocessing/regions.py"
       - "src/db/connection.py"
       - "src/db/init_db.py"
       - "src/db/check_db.py"
@@ -15,6 +16,8 @@ on:
       - "src/db/load_primary.py"
       - "src/db/queries.py"
       - "src/db/analytics_report.py"
+      - "src/features/national_daily.py"
+      - "src/features/quality_gate.py"
       - "sql/schema.sql"
   workflow_dispatch:
 
@@ -22,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: primary-data-smoke-${{ github.ref }}
+  group: primary-data-smoke-\${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -57,10 +60,23 @@ jobs:
             --model-limit 10 \
             --region-limit 10 > /tmp/analytics-summary.json
 
+      - name: Build leakage-safe national daily features
+        run: |
+          python -m src.features.national_daily \
+            --db /tmp/airstrikes-real.db \
+            --output-root /tmp/ml-features > /tmp/ml-feature-summary.json
+
+      - name: Evaluate ML quality gate
+        run: |
+          python -m src.features.quality_gate \
+            --db /tmp/airstrikes-real.db > /tmp/ml-quality-gate.json
+
       - name: Show summaries
         run: |
           cat /tmp/primary-build-summary.json
           cat /tmp/analytics-summary.json
+          cat /tmp/ml-feature-summary.json
+          cat /tmp/ml-quality-gate.json
 
       - name: Upload summaries only
         uses: actions/upload-artifact@v4
@@ -69,4 +85,6 @@ jobs:
           path: |
             /tmp/primary-build-summary.json
             /tmp/analytics-summary.json
+            /tmp/ml-feature-summary.json
+            /tmp/ml-quality-gate.json
           retention-days: 7
