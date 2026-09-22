@@ -124,6 +124,38 @@ def run_historical_count_backtest(
 
         evaluation[partition_name] = partition_metrics
 
+    test_models = evaluation["test"]["models"]
+    best_test_mae_model = min(
+        test_models,
+        key=lambda name: test_models[name]["mae"],
+    )
+    best_test_rmse_model = min(
+        test_models,
+        key=lambda name: test_models[name]["rmse"],
+    )
+    best_test_r2 = max(
+        metrics["r2"]
+        for metrics in test_models.values()
+    )
+
+    if best_test_r2 <= 0:
+        deployment_gate = {
+            "status": "blocked_research_only",
+            "reason": (
+                "No evaluated model achieved positive R² on the chronological "
+                "test partition. Results may be discussed as retrospective "
+                "historical experiments but should not be deployed for inference."
+            ),
+        }
+    else:
+        deployment_gate = {
+            "status": "manual_review_required",
+            "reason": (
+                "At least one model achieved positive test R², but deployment "
+                "still requires stability, calibration, source-shift and safety review."
+            ),
+        }
+
     return {
         "task": "offline_historical_national_source_event_count_backtest",
         "target": TARGET_COLUMN,
@@ -140,6 +172,12 @@ def run_historical_count_backtest(
             "This command returns retrospective metrics only and does not save "
             "a deployable fitted model."
         ),
+        "comparison": {
+            "lowest_test_mae_model": best_test_mae_model,
+            "lowest_test_rmse_model": best_test_rmse_model,
+            "highest_test_r2": round(float(best_test_r2), 6),
+        },
+        "deployment_gate": deployment_gate,
         "target_diagnostics": target_gate,
         "evaluation": evaluation,
     }
