@@ -164,11 +164,15 @@ Leaflet + Chart.js
 │   │   ├── check_db.py
 │   │   ├── seed_regions.py
 │   │   ├── load_primary.py
+│   │   ├── load_boundaries.py
+│   │   ├── map_data.py
 │   │   └── queries.py
 │   ├── ingestion/
-│   │   └── acquire_primary.py
+│   │   ├── acquire_primary.py
+│   │   └── acquire_boundaries.py
 │   ├── preprocessing/
 │   │   ├── primary_dataset.py
+│   │   ├── boundaries.py
 │   │   └── regions.py
 │   ├── features/
 │   ├── models/
@@ -314,10 +318,15 @@ python -m src.db.check_db
 - [x] віддавати `web/` через той самий FastAPI application.
 
 ### Sprint 5 — Regional map
-- canonical region reference;
-- geoBoundaries ADM1;
-- Leaflet;
-- агрегована історична карта.
+- [x] canonical region reference;
+- [x] versioned geoBoundaries UKR ADM1 acquisition;
+- [x] 27/27 mapping через shapeISO з name fallback;
+- [x] GIS provenance у `regions.boundary_source/boundary_version`;
+- [x] evidence-only GeoJSON endpoint;
+- [x] Leaflet integration;
+- [x] aggregated historical map;
+- [x] explicit no-evidence styling instead of treating missing geography as zero;
+- [x] real geoBoundaries smoke test та synthetic map-data tests.
 
 ### Sprint 6 — ML dataset
 - часові ознаки;
@@ -375,7 +384,14 @@ Build ID: `primary-8278a8d28145b9c1`.
 
 ## 13. Запуск dashboard
 
-Після acquisition та SQLite load:
+Після acquisition та SQLite load завантажити versioned ADM1 geometry і записати її provenance:
+
+```bash
+python -m src.ingestion.acquire_boundaries
+python -m src.db.load_boundaries
+```
+
+Після цього запустити API + dashboard:
 
 ```bash
 uvicorn api.main:app --reload
@@ -398,18 +414,33 @@ GET /api/stats/categories
 GET /api/stats/models
 GET /api/stats/regions
 GET /api/stats/attribution
+GET /api/map/regions
 ```
 
 Поточний dashboard показує лише ретроспективну аналітику. Показники `launched_known_total` та `destroyed_known_total` — суми відомих числових значень у джерелі, а не твердження про повноту всіх реальних запусків/знищень.
 
-## 14. Наступний крок
+## 14. GIS baseline — 2026-09-22
 
-**Sprint 5 — Regional map**:
+Поточний geoBoundaries UKR ADM1 snapshot:
 
-1. завантажити versioned geoBoundaries ADM1 snapshot;
-2. зіставити canonical `region_code` з геометрією;
-3. додати GeoJSON endpoint;
-4. інтегрувати Leaflet;
-5. показувати лише available region evidence з помітним coverage indicator.
+```text
+boundary ID             UKR-ADM1-14850775
+boundary year           2017
+ADM1 features           27
+canonical mappings      27/27
+mapping duplicates      0
+geometry variant        simplified GeoJSON
+```
 
-До ML переходимо лише після окремої оцінки придатності регіональної розмітки; поточні 23.97% region-link coverage не слід автоматично вважати достатнім oblast-level training label.
+Карта не перетворює відсутню регіональну розмітку на нуль. Для регіонів без `attack_event_regions` UI показує стан **no region evidence**.
+
+## 15. Наступний крок
+
+**Sprint 6 — ML dataset**, але з окремим quality gate:
+
+1. побудувати daily / region×day feature table тільки з історичних даних;
+2. створити time-based split і leakage tests;
+3. окремо оцінити national-level / weapon-activity baseline, який не потребує повної oblast label coverage;
+4. oblast-level target будувати лише на підмножині з documented region evidence;
+5. порівняти coverage та class balance перед навчанням;
+6. не трактувати 23.97% region-link coverage як випадкову або повну вибірку без додаткового обґрунтування.
