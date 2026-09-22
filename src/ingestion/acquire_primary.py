@@ -38,6 +38,15 @@ def csv_row_count(path: Path) -> int:
         return sum(1 for _ in reader)
 
 
+def csv_columns(path: Path) -> list[str]:
+    with path.open("r", encoding="utf-8-sig", newline="") as stream:
+        reader = csv.reader(stream)
+        try:
+            return [column.strip() for column in next(reader)]
+        except StopIteration:
+            return []
+
+
 def _copy_required_files(source_dir: Path, destination: Path) -> list[Path]:
     copied: list[Path] = []
     for filename in FILES:
@@ -95,6 +104,7 @@ def acquire_snapshot(
             "filename": path.name,
             "sha256": sha256_file(path),
             "rows": csv_row_count(path),
+            "columns": csv_columns(path),
             "bytes": path.stat().st_size,
         }
         file_metadata.append(metadata)
