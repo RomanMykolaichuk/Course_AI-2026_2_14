@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 
 from src.db.connection import connect, get_db_path
 from src.db.queries import (
@@ -13,9 +16,11 @@ from src.db.queries import (
 )
 
 
+WEB_DIR = Path(__file__).resolve().parents[1] / "web"
+
 app = FastAPI(
     title="Ukraine Air Strike Analytics API",
-    version="0.3.0",
+    version="0.4.0",
     description="Educational API for retrospective analytics and ML demonstrations.",
 )
 
@@ -91,3 +96,6 @@ def stats_regions() -> list[dict]:
 @app.get("/api/stats/attribution")
 def stats_attribution() -> dict:
     return get_attribution_coverage(_require_database())
+
+
+app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
