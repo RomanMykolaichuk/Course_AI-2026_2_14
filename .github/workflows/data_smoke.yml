@@ -85,6 +85,12 @@ jobs:
           python -m src.features.quality_gate \
             --db /tmp/airstrikes-real.db > /tmp/ml-quality-gate.json
 
+      - name: Run offline historical count backtest
+        run: |
+          python -m src.models.historical_count_backtest \
+            --db /tmp/airstrikes-real.db \
+            --output /tmp/ml-backtest.json
+
       - name: Show summaries
         run: |
           cat /tmp/primary-build-summary.json
