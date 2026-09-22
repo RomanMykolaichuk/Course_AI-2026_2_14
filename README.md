@@ -68,44 +68,47 @@ data/airstrikes.db
 
 ## 5. ML-задача
 
-Початкова навчальна постановка:
+Початкова ідея `region_code × time_bucket` з binary label була перевірена через data quality gate і **не допускається до навчання на поточному build**:
 
-**оцінювання ймовірності наявності історично спостережуваної події в певному регіоні протягом наступного агрегованого часового інтервалу на основі лише попередніх історичних ознак.**
+- лише 23.97% canonical events мають region link;
+- high-confidence region labels: 0;
+- усі 994 наявні region-linked events мають medium confidence;
+- national daily binary label також має single-class validation interval.
 
-Рекомендований grain для ML-таблиці:
+Тому поточний ML-етап формулюється як **offline historical backtesting of aggregate source activity**, а не як live прогноз майбутніх ударів.
+
+Поточний grain:
 
 ```text
-region_code × time_bucket
+country × calendar_day
 ```
 
-Приклади ознак:
+Дозволені predictors:
 
-- day_of_week;
-- month;
-- previous_24h_events;
-- previous_7d_events;
-- rolling_mean_7d;
-- rolling_mean_30d;
-- days_since_previous_event;
-- historical UAV activity;
-- historical missile activity;
-- optional lagged alert/weather features.
+- day_of_week / month / day_of_year;
+- event_count_lag1 / lag7;
+- prior-only rolling_mean_7d / rolling_mean_30d;
+- lagged known launch activity;
+- lagged UAV/missile source activity;
+- days_since_previous_source_event;
+- history_days_available.
 
-Початкові моделі:
+Ключові правила:
 
-- DummyClassifier;
-- LogisticRegression;
-- RandomForestClassifier.
+- target-day outcome/count fields не входять до predictors;
+- усі activity features формуються лише з дат **до** target date;
+- split лише chronological, без shuffle;
+- target formulation проходить окрему перевірку class/variance stability;
+- model training не запускається, якщо validation/test непридатні для обраних metrics;
+- жодного live/current endpoint для прогнозу ударів, цілей, маршрутів або конкретних регіонів.
 
-Метрики:
+Поточні candidate tasks:
 
-- Precision;
-- Recall;
-- F1-score;
-- ROC-AUC;
-- PR-AUC.
+- binary `source_event_present` — **blocked** через single-class validation;
+- `source_event_count` regression — проходить окрему target diagnostics;
+- train-derived high-activity labels — лише якщо обидва evaluation intervals зберігають обидва класи.
 
-Обов’язкова вимога: ознаки формуються лише з інформації, доступної **до** prediction interval.
+Для regression baseline передбачаються MAE/RMSE; для classification — Precision/Recall/F1/ROC-AUC/PR-AUC лише коли evaluation partitions містять обидва класи.
 
 ## 6. Архітектура
 
@@ -358,135 +361,3 @@ python -m src.db.check_db
 ## 11. Принципи роботи з даними
 
 - використовуються лише документовані відкриті/доступні для дослідження джерела;
-- сирі дані не редагуються вручну;
-- усі трансформації мають бути відтворюваними;
-- походження кожного набору даних документується;
-- `null` не перетворюється на `0`, якщо джерело не повідомляє нуль явно;
-- неоднозначна географія не перетворюється на точну координату без доказового правила;
-- raw source snapshots та processed dataset builds версіонуються;
-- SQLite DB є generated artifact, а не джерелом істини;
-- API keys/tokens не комітяться;
-- оперативно чутливі сценарії та точне прогнозування цілей не входять до цілей проєкту;
-- моделі оцінюються як статистичні моделі на історичних даних, а не як система оперативного передбачення.
-
-Правила provenance/versioning: [docs/data_governance.md](docs/data_governance.md).
-
-## 12. Реальний baseline build — 2026-09-22
-
-End-to-end smoke test на актуальному public Kaggle snapshot успішний:
-
-```text
-source rows                  4152
-canonical events             4146
-region links                 1114
-events with any region       994
-weapon reference rows        64
-affected_region present      no
-SQLite integrity_check       ok
-foreign_key_check            ok
-```
-
-Build ID: `primary-8278a8d28145b9c1`.
-
-Важливе спостереження: поточний завантажений `missile_attacks_daily.csv` не містить колонки `affected_region`, хоча вона описана у Data Card джерела. Тому для цього snapshot регіональна прив’язка формується лише з явних адміністративних згадок у `target`; це неповне покриття і його не можна трактувати як повну oblast-level розмітку.
-
-## 13. Запуск dashboard
-
-Після acquisition та SQLite load завантажити versioned ADM1 geometry і записати її provenance:
-
-```bash
-python -m src.ingestion.acquire_boundaries
-python -m src.db.load_boundaries
-```
-
-Після цього запустити API + dashboard:
-
-```bash
-uvicorn api.main:app --reload
-```
-
-Відкрити:
-
-```text
-http://127.0.0.1:8000/
-```
-
-FastAPI віддає і API, і `web/` з одного origin. Основні endpoints:
-
-```text
-GET /api/health
-GET /api/build/latest
-GET /api/stats/overview
-GET /api/stats/daily
-GET /api/stats/categories
-GET /api/stats/models
-GET /api/stats/regions
-GET /api/stats/attribution
-GET /api/map/regions
-```
-
-Поточний dashboard показує лише ретроспективну аналітику. Показники `launched_known_total` та `destroyed_known_total` — суми відомих числових значень у джерелі, а не твердження про повноту всіх реальних запусків/знищень.
-
-## 14. GIS baseline — 2026-09-22
-
-Поточний geoBoundaries UKR ADM1 snapshot:
-
-```text
-boundary ID             UKR-ADM1-14850775
-boundary year           2017
-ADM1 features           27
-canonical mappings      27/27
-mapping duplicates      0
-geometry variant        simplified GeoJSON
-```
-
-Карта не перетворює відсутню регіональну розмітку на нуль. Для регіонів без `attack_event_regions` UI показує стан **no region evidence**.
-
-## 15. ML feature baseline — 2026-09-22
-
-Побудовано national daily feature dataset для **historical backtesting only**:
-
-```text
-calendar rows                 1452
-period                        2022-09-28 — 2026-09-18
-positive source days          1218
-negative source days           234
-overall positive rate        83.8843%
-model-ready start             2022-10-05
-```
-
-Фінальний ML CSV не містить target-day `event_count`, `launched`, `destroyed` або інших outcome-полів. Дозволені predictors — календарні та lag/rolling features, сформовані лише з попередніх дат.
-
-Chronological split без shuffle:
-
-```text
-train       2022-10-05 — 2025-07-11   1011 rows   positive 77.3492%
-validation  2025-07-12 — 2026-02-12    216 rows   positive 100.0000%
-test        2026-02-13 — 2026-09-18    218 rows   positive 99.0826%
-```
-
-Цей split виявив суттєву зміну source-label distribution. Validation не містить жодного negative day, тому стандартне binary classification evaluation є методологічно некоректним для поточної постановки.
-
-Quality gate:
-
-```text
-national feature generation       ALLOWED
-national binary classification    BLOCKED_SINGLE_CLASS_EVALUATION
-oblast-level training             BLOCKED_MEDIUM_CONFIDENCE_ONLY
-region-link coverage              23.97%
-high-confidence region events     0
-medium-confidence region events   994
-```
-
-## 16. Наступний крок
-
-**Sprint 7 — Offline historical ML backtest** починається не з навчання Logistic Regression/Random Forest, а з переоцінки target formulation.
-
-Допустимий напрям для наступного етапу:
-
-1. залишити поточний binary classifier заблокованим;
-2. дослідити агреговану national-level historical activity target, яка має достатню варіативність у всіх chronological partitions;
-3. перевірити distribution shift до training;
-4. порівнювати model лише з простим naive/dummy baseline;
-5. зберігати лише retrospective evaluation artifacts;
-6. не створювати live/current endpoint для прогнозу майбутніх ударів, цілей, маршрутів або конкретних регіонів.
