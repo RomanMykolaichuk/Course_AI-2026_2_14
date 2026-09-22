@@ -334,6 +334,7 @@ def transform_primary_dataset(
         "source_rows": int(len(attacks)),
         "events": int(len(events)),
         "region_links": int(len(links)),
+        "affected_region_column_present": int("affected_region" in attacks.columns),
         "events_with_explicit_regions": int(explicit_region_events),
         "events_with_any_region": int(any_region_events),
         "weapon_reference_rows": int(len(weapons)),
