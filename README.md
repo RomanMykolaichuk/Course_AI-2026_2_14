@@ -162,9 +162,14 @@ Leaflet + Chart.js
 │   │   ├── connection.py
 │   │   ├── init_db.py
 │   │   ├── check_db.py
+│   │   ├── seed_regions.py
+│   │   ├── load_primary.py
 │   │   └── queries.py
 │   ├── ingestion/
+│   │   └── acquire_primary.py
 │   ├── preprocessing/
+│   │   ├── primary_dataset.py
+│   │   └── regions.py
 │   ├── features/
 │   ├── models/
 │   └── utils/
@@ -239,6 +244,31 @@ data/airstrikes.db
 
 Інший шлях можна задати через `DATABASE_PATH` у локальному `.env`.
 
+### Primary dataset: acquisition → SQLite
+
+Завантажити актуальний snapshot через офіційний KaggleHub:
+
+```bash
+python -m src.ingestion.acquire_primary
+```
+
+Якщо CSV уже завантажені вручну:
+
+```bash
+python -m src.ingestion.acquire_primary --from-dir /path/to/downloaded/dataset
+```
+
+Команда створює датований каталог у `data/raw/`, SHA-256 та metadata sidecars. Самі raw-файли не комітяться.
+
+Перетворити останній snapshot і завантажити canonical tables у SQLite:
+
+```bash
+python -m src.db.load_primary
+python -m src.db.check_db
+```
+
+Згенеровані canonical CSV та `manifest.json` зберігаються під `data/processed/primary/<snapshot-date>/` і також не комітяться.
+
 ## 10. План реалізації
 
 ### Sprint 1 — SQLite foundation
@@ -251,13 +281,16 @@ data/airstrikes.db
 - [x] синхронізувати документацію та конфігурацію.
 
 ### Sprint 2 — Primary dataset → SQLite
-- [ ] отримати versioned snapshot `missile_attacks_daily.csv`;
-- [ ] зберегти metadata/checksum;
-- [ ] реалізувати primary-source ingestion parser;
-- [ ] реалізувати canonical transformation;
-- [ ] завантажити `attack_events`;
-- [ ] розібрати `target` у `attack_event_regions`;
-- [ ] записати provenance у `dataset_builds`.
+- [x] реалізувати acquisition через KaggleHub або локальний каталог;
+- [x] автоматично створювати metadata/checksum;
+- [x] реалізувати primary-source parser;
+- [x] реалізувати canonical transformation;
+- [x] реалізувати завантаження `attack_events`;
+- [x] використовувати `affected_region` як primary region evidence;
+- [x] використовувати explicit oblast mentions у `target` як conservative fallback;
+- [x] записувати provenance у `dataset_builds`;
+- [x] додати synthetic unit tests та GitHub Actions CI;
+- [ ] виконати локальний acquisition актуального raw snapshot і зафіксувати перший реальний build summary.
 
 ### Sprint 3 — EDA + SQL analytics
 - дослідити пропуски та дублікати;
@@ -315,13 +348,13 @@ data/airstrikes.db
 
 ## 12. Наступний крок
 
-Після SQLite foundation наступний практичний етап:
+Код Sprint 2 готовий. Наступний практичний крок — виконати перший реальний end-to-end build:
 
-1. завантажити versioned snapshot `missile_attacks_daily.csv`;
-2. зберегти metadata/checksum;
-3. реалізувати `src/ingestion/` parser;
-4. створити нормалізовані `attack_events`;
-5. окремо розібрати `target` у `attack_event_regions`;
-6. завантажити результат у SQLite;
-7. виконати перший SQL/EDA аналіз;
-8. перевірити, які записи реально придатні для oblast-level ML labels.
+1. `python -m src.ingestion.acquire_primary`;
+2. `python -m src.db.load_primary`;
+3. перевірити build statistics і частку подій з надійним region attribution;
+4. виконати перший SQL/EDA аналіз;
+5. побудувати daily timeline та category summary;
+6. визначити, які записи реально придатні для oblast-level ML labels.
+
+Після цього Sprint 3 переходить від структури проєкту до аналізу реальних даних.
