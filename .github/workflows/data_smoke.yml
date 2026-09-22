@@ -8,12 +8,20 @@ on:
       - ".github/workflows/data_smoke.yml"
       - "src/ingestion/**"
       - "src/preprocessing/**"
-      - "src/db/**"
+      - "src/db/connection.py"
+      - "src/db/init_db.py"
+      - "src/db/check_db.py"
+      - "src/db/seed_regions.py"
+      - "src/db/load_primary.py"
       - "sql/schema.sql"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: primary-data-smoke-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-primary:
