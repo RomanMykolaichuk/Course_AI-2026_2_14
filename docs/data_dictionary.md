@@ -9,16 +9,18 @@ The primary source is not a simple “one row = one strike location” dataset. 
 The project uses SQLite as the local relational store.
 
 - timestamps are stored as ISO 8601 text;
-- ETL code normalizes timestamps to UTC before writing;
+- full date-time values are interpreted in the documented source timezone and normalized to UTC;
+- source values that contain only a calendar date remain `YYYY-MM-DD` rather than receiving an invented time;
 - integer counts use SQLite `INTEGER`;
 - floating-point measurements use SQLite `REAL`;
 - missing values remain `NULL`;
 - every connection enables `PRAGMA foreign_keys = ON`.
 
-Example canonical timestamp:
+Examples:
 
 ```text
-2026-09-22T07:30:00+00:00
+2026-09-22
+2026-09-22T07:30:00Z
 ```
 
 ## Core entities
@@ -30,8 +32,8 @@ One row represents one normalized source observation for a specific attack inter
 | Field | SQLite type | Required | Description |
 |---|---|---:|---|
 | event_id | TEXT | yes | Stable internal identifier |
-| time_start | TEXT | yes | ISO 8601 UTC start of the reported attack interval |
-| time_end | TEXT | no | ISO 8601 UTC end of the reported attack interval |
+| time_start | TEXT | yes | ISO 8601 source date or normalized UTC date-time |
+| time_end | TEXT | no | ISO 8601 source date or normalized UTC date-time |
 | weapon_model | TEXT | no | Normalized missile/UAV model |
 | weapon_category | TEXT | no | Broad category such as UAV, cruise missile, ballistic missile |
 | launch_place | TEXT | no | Source-provided launch location or area |
@@ -68,8 +70,8 @@ Many-to-many link between attack observations and regions.
 |---|---|---:|---|
 | event_id | TEXT | yes | FK to `attack_events` |
 | region_code | TEXT | yes | FK to `regions` |
-| relation_type | TEXT | yes | `target`, `destroyed_location`, `mentioned`, or another documented relation |
-| attribution_method | TEXT | yes | `source_explicit`, `parsed`, `manual_review`, etc. |
+| relation_type | TEXT | yes | e.g. `affected`, `target`, `destroyed_location`, `mentioned` |
+| attribution_method | TEXT | yes | e.g. `source_explicit_parsed`, `parsed`, `manual_review` |
 | attribution_quality | TEXT | no | Optional quality flag such as `high`, `medium`, `low` |
 
 This table prevents a multi-oblast target string from being incorrectly collapsed into one region.
@@ -164,12 +166,13 @@ Do not use as predictors:
 
 | Source field | Canonical field | Rule |
 |---|---|---|
-| `time_start` | `time_start` | parse, normalize to UTC, serialize as ISO 8601 text |
-| `time_end` | `time_end` | parse when present, normalize to UTC |
+| `time_start` | `time_start` | date-only → preserve `YYYY-MM-DD`; date-time → interpret as Europe/Kyiv when naive and normalize to UTC |
+| `time_end` | `time_end` | same rule when present |
 | `model` | `weapon_model` | normalize via weapon reference table |
 | model reference category | `weapon_category` | join from `missiles_and_uavs.csv` |
 | `launch_place` | `launch_place` | preserve source text |
-| `target` | `target_raw` | preserve; parse regions separately |
+| `target` | `target_raw` | preserve exactly/semantically; explicit oblast mentions may create medium-confidence `target` relations |
+| `affected_region` | `attack_event_regions` | explicit administrative-region mentions create high-confidence `affected` relations |
 | `carrier` | `carrier` | preserve/normalize |
 | `launched` | `launched` | integer/null; never replace null with zero |
 | `destroyed` | `destroyed` | integer/null |
@@ -180,21 +183,24 @@ Do not use as predictors:
 
 ## Identifier strategy
 
-A deterministic event identifier should be generated from stable normalized source fields, for example:
+The first implementation uses a deterministic SHA-256 event key based on the semantic observation identity:
 
-`sha256(source_name + time_start + model + launch_place + target_raw + source_record_id)`
+`source_name + raw time_start + raw time_end + model + launch_place + target + carrier`
 
-The exact implementation must be fixed before the first processed dataset is published.
+Mutable outcome/count fields are intentionally excluded so corrections in a newer snapshot update the same canonical observation instead of automatically creating a second event.
+
+`source_record_id` is a separate SHA-256 hash of the complete source row and therefore changes when the source record itself changes.
 
 ## Timezone
 
-All canonical timestamps represent timezone-aware instants even though SQLite stores them as text.
+Canonical date-times represent timezone-aware instants even though SQLite stores them as text. Date-only source observations remain dates and do not imply midnight.
 
-Recommended handling:
+Current primary-source handling:
 
-- ingestion: parse the source timezone explicitly;
-- Python/pandas: convert to UTC internally;
-- SQLite: persist normalized ISO 8601 UTC strings;
-- dashboard: convert to `Europe/Kyiv` for presentation when appropriate.
+- source date-time without timezone: interpret as `Europe/Kyiv`;
+- Python/pandas: convert full timestamps to UTC;
+- SQLite: persist full timestamps as ISO 8601 UTC strings ending in `Z`;
+- source date only: preserve `YYYY-MM-DD`;
+- dashboard: convert full timestamps to `Europe/Kyiv` for presentation when appropriate.
 
-The source timezone assumption must be documented during ingestion rather than guessed downstream.
+This distinction prevents false temporal precision from being introduced during ETL.
